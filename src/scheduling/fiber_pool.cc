@@ -1,5 +1,5 @@
 #include "scheduling/fiber_pool.h"
-#include "zcoroutine_logger.h"
+#include "util/zcoroutine_logger.h"
 
 namespace zcoroutine {
 
@@ -23,7 +23,7 @@ FiberPool::~FiberPool() {
                         total_created_.load(), total_reused_.load(), idle_count);
 }
 
-Fiber::ptr FiberPool::acquire() {
+Fiber::ptr FiberPool::acquire(std::function<void()> func) {
     std::lock_guard<std::mutex> lock(mutex_);
     
     if (!idle_fibers_.empty()) {
@@ -37,15 +37,13 @@ Fiber::ptr FiberPool::acquire() {
         return fiber;
     }
     
-    // 池为空，创建新协程（注意：这里创建的是空协程，需要用户调用reset设置回调）
+    // 池为空，创建新协程
     size_t created = total_created_.fetch_add(1, std::memory_order_relaxed) + 1;
-    
     ZCOROUTINE_LOG_DEBUG("FiberPool::acquire pool empty, need create new fiber: total_created={}",
                          created);
-    
-    // 返回nullptr，由调用者创建协程
-    // 因为协程需要在构造时指定回调函数，池无法预先创建
-    return nullptr;
+
+    auto new_fiber = std::make_shared<Fiber>(func);
+    return new_fiber;
 }
 
 void FiberPool::release(Fiber::ptr fiber) {

@@ -31,7 +31,7 @@ public:
      * @param min_size 最小容量
      * @param max_size 最大容量
      */
-    FiberPool(size_t min_size = 10, size_t max_size = 1000);
+    explicit FiberPool(size_t min_size = 10, size_t max_size = 1000);
 
     /**
      * @brief 析构函数
@@ -44,7 +44,7 @@ public:
      * @return 协程智能指针
      * 如果池中有空闲协程则复用，否则创建新协程
      */
-    Fiber::ptr get(std::function<void()> func);
+    Fiber::ptr acquire(std::function<void()> func);
 
     /**
      * @brief 归还协程到池中

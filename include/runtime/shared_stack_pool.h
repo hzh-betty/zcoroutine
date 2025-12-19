@@ -3,7 +3,7 @@
 
 #include <vector>
 #include <atomic>
-#include <cstddef>
+#include <memory>
 
 namespace zcoroutine {
 
@@ -74,10 +74,10 @@ public:
     size_t get_stack_size() const { return stack_size_; }
 
 private:
-    int count_;                             // 共享栈数量
-    size_t stack_size_;                     // 单个栈大小
-    std::vector<StackMem*> stack_array_;    // 栈内存数组
-    std::atomic<unsigned int> alloc_idx_;   // 分配索引（轮询）
+    int count_;                                      // 共享栈数量
+    size_t stack_size_;                              // 单个栈大小
+    std::vector<std::unique_ptr<StackMem>> stack_array_;  // 栈内存数组
+    std::atomic<unsigned int> alloc_idx_;            // 分配索引（轮询）
 };
 
 } // namespace zcoroutine

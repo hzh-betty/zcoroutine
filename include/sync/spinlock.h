@@ -1,6 +1,7 @@
 #ifndef ZCOROUTINE_SPINLOCK_H_
 #define ZCOROUTINE_SPINLOCK_H_
 
+#include <thread>
 #include <atomic>
 #include "util/noncopyable.h"
 
@@ -8,7 +9,7 @@ namespace zcoroutine {
 
 /**
  * @brief 自旋锁类
- * 使用std::atomic_flag实现（C++11标准，无锁原子操作）
+ * 使用std::atomic_flag实现（使用C++11标准，无锁原子操作）
  * 适用于临界区代码执行时间极短的场景
  */
 class Spinlock : public NonCopyable {
@@ -21,7 +22,7 @@ public:
      */
     void lock() {
         while (flag_.test_and_set(std::memory_order_acquire)) {
-            // 自旋等待
+            std::this_thread::yield();// 自旋等待
         }
     }
 

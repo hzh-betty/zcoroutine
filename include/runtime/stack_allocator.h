@@ -1,9 +1,6 @@
 #ifndef ZCOROUTINE_STACK_ALLOCATOR_H_
 #define ZCOROUTINE_STACK_ALLOCATOR_H_
 
-#include <cstddef>
-#include <cstdint>
-
 namespace zcoroutine {
 
 /**

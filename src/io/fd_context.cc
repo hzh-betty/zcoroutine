@@ -1,6 +1,5 @@
 #include "io/fd_context.h"
-#include "zcoroutine_logger.h"
-#include "util/thread_context.h"
+#include "util/zcoroutine_logger.h"
 #include "scheduling/scheduler.h"
 #include <cstring>
 

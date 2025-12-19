@@ -1,6 +1,6 @@
 #include "scheduling/scheduler.h"
 #include "util/thread_context.h"
-#include "zcoroutine_logger.h"
+#include "util/zcoroutine_logger.h"
 
 namespace zcoroutine {
 
@@ -34,7 +34,7 @@ void Scheduler::start() {
     for (int i = 0; i < thread_count_; ++i) {
         auto thread = std::make_unique<std::thread>([this, i]() {
             // 设置线程的调度器
-            ThreadContext::SetScheduler(this);
+            ThreadContext::set_scheduler(this);
             
             ZCOROUTINE_LOG_DEBUG("Scheduler[{}] worker thread {} started", name_, i);
             this->run();
@@ -102,11 +102,11 @@ void Scheduler::set_fiber_pool(FiberPool::ptr pool) {
 }
 
 Scheduler* Scheduler::get_this() {
-    return ThreadContext::GetScheduler();
+    return ThreadContext::get_scheduler();
 }
 
 void Scheduler::set_this(Scheduler* scheduler) {
-    ThreadContext::SetScheduler(scheduler);
+    ThreadContext::set_scheduler(scheduler);
 }
 
 void Scheduler::run() {

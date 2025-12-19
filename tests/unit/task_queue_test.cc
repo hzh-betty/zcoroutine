@@ -535,3 +535,9 @@ TEST_F(TaskQueueTest, FiberTaskWithYield) {
     EXPECT_EQ(step, 2);
     EXPECT_EQ(task.fiber->state(), Fiber::State::kTerminated);
 }
+
+int main(int argc, char** argv)
+{
+    ::testing::InitGoogleTest(&argc,argv);
+    return RUN_ALL_TESTS();
+}

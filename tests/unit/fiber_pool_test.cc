@@ -512,3 +512,9 @@ TEST_F(FiberPoolTest, IdleFiberCleanup) {
     size_t after = pool_->get_idle_count();
     EXPECT_LE(after, 5);
 }
+
+int main(int argc, char** argv)
+{
+    ::testing::InitGoogleTest(&argc,argv);
+    return RUN_ALL_TESTS();
+}

@@ -1,5 +1,5 @@
-#ifndef ZCOROUTINE_IO_SCHEDULER_H
-#define ZCOROUTINE_IO_SCHEDULER_H
+#ifndef ZCOROUTINE_IO_SCHEDULER_H_
+#define ZCOROUTINE_IO_SCHEDULER_H_
 
 #include <memory>
 #include <atomic>
@@ -142,4 +142,4 @@ private:
 
 }  // namespace zcoroutine
 
-#endif  // ZCOROUTINE_IO_SCHEDULER_H
+#endif  // ZCOROUTINE_IO_SCHEDULER_H_

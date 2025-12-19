@@ -432,3 +432,9 @@ TEST_F(FdContextTest, BothFiberAndCallbackSet) {
     // 至少应该执行其中一个
     EXPECT_TRUE(callback_called || fiber_executed);
 }
+
+int main(int argc, char** argv)
+{
+    ::testing::InitGoogleTest(&argc,argv);
+    return RUN_ALL_TESTS();
+}

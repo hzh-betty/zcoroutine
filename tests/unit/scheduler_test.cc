@@ -152,3 +152,9 @@ TEST_F(SchedulerTest, ScheduleWithBind) {
     scheduler.stop();
     EXPECT_EQ(result.load(), 30);
 }
+
+int main(int argc, char** argv)
+{
+    ::testing::InitGoogleTest(&argc,argv);
+    return RUN_ALL_TESTS();
+}

@@ -22,7 +22,7 @@ Fiber::Fiber()
     context_->get_context();
     
     // 设置为当前协程
-    ThreadContext::SetCurrentFiber(this);
+    ThreadContext::set_current_fiber(this);
     
     ZCOROUTINE_LOG_INFO("Main fiber created: name={}, id={}", name_, id_);
 }
@@ -111,8 +111,8 @@ void Fiber::resume(ptr caller) {
     }
     
     // 设置为当前协程
-    Fiber* prev_fiber = ThreadContext::GetCurrentFiber();
-    ThreadContext::SetCurrentFiber(this);
+    Fiber* prev_fiber = ThreadContext::get_current_fiber();
+    ThreadContext::set_current_fiber(this);
     
     // 更新状态
     State prev_state = state_;
@@ -140,11 +140,11 @@ void Fiber::resume(ptr caller) {
     }
     
     // 协程执行完毕后会切换回来，恢复前一个协程
-    ThreadContext::SetCurrentFiber(prev_fiber);
+    ThreadContext::set_current_fiber(prev_fiber);
 }
 
 void Fiber::yield() {
-    Fiber* cur_fiber = ThreadContext::GetCurrentFiber();
+    Fiber* cur_fiber = ThreadContext::get_current_fiber();
     if (!cur_fiber) {
         ZCOROUTINE_LOG_WARN("Fiber::yield failed: no current fiber to yield");
         return;
@@ -181,13 +181,13 @@ void Fiber::yield() {
     // 切换回调用者或主协程
     auto caller = cur_fiber->caller_fiber_.lock();
     if (caller && caller->context_) {
-        ThreadContext::SetCurrentFiber(caller.get());
+        ThreadContext::set_current_fiber(caller.get());
         Context::swap_context(cur_fiber->context_.get(), caller->context_.get());
     } else {
         // 没有调用者，创建临时上下文切换
         Context temp_ctx;
         temp_ctx.get_context();
-        ThreadContext::SetCurrentFiber(nullptr);
+        ThreadContext::set_current_fiber(nullptr);
         Context::swap_context(cur_fiber->context_.get(), &temp_ctx);
     }
 }
@@ -206,7 +206,7 @@ void Fiber::reset(std::function<void()> func) {
 }
 
 void Fiber::main_func() {
-    Fiber* cur_fiber = ThreadContext::GetCurrentFiber();
+    Fiber* cur_fiber = ThreadContext::get_current_fiber();
     assert(cur_fiber && "No current fiber in main_func");
     
     ZCOROUTINE_LOG_DEBUG("Fiber main_func starting: name={}, id={}", 
@@ -241,17 +241,17 @@ void Fiber::main_func() {
     if (caller && caller->context_) {
         ZCOROUTINE_LOG_DEBUG("Fiber switching back to caller: name={}, id={}, caller={}", 
                              cur_fiber->name_, cur_fiber->id_, caller->name());
-        ThreadContext::SetCurrentFiber(caller.get());
+        ThreadContext::set_current_fiber(caller.get());
         Context::swap_context(cur_fiber->context_.get(), caller->context_.get());
     }
 }
 
 Fiber* Fiber::get_this() {
-    return ThreadContext::GetCurrentFiber();
+    return ThreadContext::get_current_fiber();
 }
 
 void Fiber::set_this(Fiber* fiber) {
-    ThreadContext::SetCurrentFiber(fiber);
+    ThreadContext::set_current_fiber(fiber);
 }
 
 } // namespace zcoroutine

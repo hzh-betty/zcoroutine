@@ -1,10 +1,9 @@
-#ifndef ZCOROUTINE_EPOLL_POLLER_H
-#define ZCOROUTINE_EPOLL_POLLER_H
+#ifndef ZCOROUTINE_EPOLL_POLLER_H_
+#define ZCOROUTINE_EPOLL_POLLER_H_
 
 #include <memory>
 #include <vector>
 #include <sys/epoll.h>
-#include "io/fd_context.h"
 #include "util/noncopyable.h"
 
 namespace zcoroutine {
@@ -76,4 +75,4 @@ private:
 
 }  // namespace zcoroutine
 
-#endif  // ZCOROUTINE_EPOLL_POLLER_H
+#endif  // ZCOROUTINE_EPOLL_POLLER_H_

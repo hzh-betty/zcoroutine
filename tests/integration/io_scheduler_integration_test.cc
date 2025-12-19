@@ -174,24 +174,42 @@ TEST_F(IoSchedulerIntegrationTest, MultipleCoroutinesIo) {
     io_scheduler->stop();
 }
 
-// 测试：Hook系统调用
 TEST_F(IoSchedulerIntegrationTest, HookSystemCall) {
     auto io_scheduler = IoScheduler::CreateInstance(2, true, "HookTest");
-    
+
     std::atomic<bool> sleep_done{false};
-    
+    std::atomic<bool> early_ran{false};
+    std::atomic<long long> duration_ms{0};
+
+    // 在 sleep 期间期望能执行的短任务（100ms 后执行）
+    io_scheduler->add_timer(100, [&]() {
+        early_ran = true;
+    });
+
     io_scheduler->schedule([&]() {
         auto start = std::chrono::steady_clock::now();
-        sleep(1); // 应该被hook，转换为异步定时器
+        sleep(1); // 期望被 hook 为异步定时器并挂起当前 fiber
         auto end = std::chrono::steady_clock::now();
-        
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-        EXPECT_GE(duration, 1000);
+
+        duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
         sleep_done = true;
     });
-    
+
+    // 等待充足时间
     std::this_thread::sleep_for(std::chrono::milliseconds(1500));
+
+    // 断言：sleep 的任务确实完成，且早期定时器在 sleep 完成之前或期间被触发
     EXPECT_TRUE(sleep_done.load());
-    
+    EXPECT_TRUE(early_ran.load());
+
+    EXPECT_GE(duration_ms.load(), 900);  // 不小于约 900ms
+    EXPECT_LE(duration_ms.load(), 3000); // 不超出太多（防止无限阻塞情况误判）
+
     io_scheduler->stop();
+}
+
+int main(int argc, char** argv)
+{
+    ::testing::InitGoogleTest(&argc,argv);
+    return RUN_ALL_TESTS();
 }

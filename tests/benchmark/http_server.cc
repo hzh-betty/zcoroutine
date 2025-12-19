@@ -23,7 +23,7 @@
 using namespace zcoroutine;
 
 static int listen_fd = -1;
-static IoScheduler* g_io_scheduler = nullptr;
+static IoScheduler::ptr g_io_scheduler = nullptr;
 
 // HTTP响应内容
 static const char* HTTP_RESPONSE = 

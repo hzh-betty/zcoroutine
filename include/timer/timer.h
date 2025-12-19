@@ -1,7 +1,6 @@
 #ifndef ZCOROUTINE_TIMER_H_
 #define ZCOROUTINE_TIMER_H_
 
-#include <cstdint>
 #include <functional>
 #include <memory>
 

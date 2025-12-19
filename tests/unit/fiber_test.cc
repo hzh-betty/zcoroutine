@@ -1,8 +1,6 @@
 /**
  * @file fiber_test.cc
  * @brief Fiber类详细单元测试
- * 
- * 注意：Fiber不支持嵌套，所有测试避免嵌套协程调用
  */
 
 #include <gtest/gtest.h>
@@ -946,4 +944,10 @@ TEST_F(SharedStackFiberTest, SharedStackRepeatedYieldSamePosition) {
     }
     
     EXPECT_EQ(counter, 10);
+}
+
+int main(int argc, char** argv)
+{
+    ::testing::InitGoogleTest(&argc,argv);
+    return RUN_ALL_TESTS();
 }

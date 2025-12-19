@@ -15,6 +15,8 @@ namespace zcoroutine {
  */
 class TimerManager {
 public:
+     using ptr = std::shared_ptr<TimerManager>;
+
     /**
      * @brief 添加定时器
      * @param timeout 超时时间（毫秒）

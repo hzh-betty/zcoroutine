@@ -484,3 +484,9 @@ TEST_F(TimerTest, TimerRefreshReorder) {
     EXPECT_TRUE(second_executed);
     EXPECT_FALSE(first_executed); // 第一个定时器被延后，还没过期
 }
+
+int main(int argc, char** argv)
+{
+    ::testing::InitGoogleTest(&argc,argv);
+    return RUN_ALL_TESTS();
+}

@@ -1,7 +1,7 @@
 #include "io/epoll_poller.h"
-#include "zcoroutine_logger.h"
+#include "util/zcoroutine_logger.h"
 #include <unistd.h>
-#include <cstring>
+
 
 namespace zcoroutine {
 
@@ -30,8 +30,7 @@ EpollPoller::~EpollPoller() {
 }
 
 int EpollPoller::add_event(int fd, int events, void* data) {
-    struct epoll_event ev;
-    memset(&ev, 0, sizeof(ev));
+    epoll_event ev = {};
     ev.events = events | EPOLLET;  // 边缘触发
     ev.data.ptr = data;
     
@@ -47,8 +46,7 @@ int EpollPoller::add_event(int fd, int events, void* data) {
 }
 
 int EpollPoller::mod_event(int fd, int events, void* data) {
-    struct epoll_event ev;
-    memset(&ev, 0, sizeof(ev));
+    epoll_event ev = {};
     ev.events = events | EPOLLET;  // 边缘触发
     ev.data.ptr = data;
     

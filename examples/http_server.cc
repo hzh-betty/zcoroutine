@@ -24,7 +24,7 @@
 using namespace zcoroutine;
 
 static int listen_fd = -1;
-static IoScheduler* g_io_scheduler = nullptr;
+static IoScheduler::ptr g_io_scheduler = nullptr;
 
 // HTTP响应内容
 static const char* HTTP_RESPONSE = 
@@ -177,8 +177,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Benchmark: wrk -t4 -c100 -d30s http://localhost:" << port << "/" << std::endl;
     
     // 创建IoScheduler（使用指定数量的工作线程）
-    auto io_scheduler = IoScheduler::CreateInstance(thread_num, true, "HttpServer");
-    g_io_scheduler = io_scheduler.get();
+    g_io_scheduler = IoScheduler::CreateInstance(thread_num, true, "HttpServer");
     
     // 启用Hook（使系统调用异步化）
     set_hook_enable(true);

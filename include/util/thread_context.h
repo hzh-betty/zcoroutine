@@ -1,6 +1,5 @@
 #ifndef ZCOROUTINE_THREAD_CONTEXT_H_
 #define ZCOROUTINE_THREAD_CONTEXT_H_
-
 namespace zcoroutine {
 
 // 前向声明
@@ -18,43 +17,43 @@ public:
      * @brief 获取当前线程的上下文
      * @return 当前线程的ThreadContext指针，如果不存在则创建
      */
-    static ThreadContext* GetCurrent();
+    static ThreadContext* get_current();
 
     /**
      * @brief 设置当前执行的协程
      * @param fiber 协程指针
      */
-    static void SetCurrentFiber(Fiber* fiber);
+    static void set_current_fiber(Fiber* fiber);
 
     /**
      * @brief 获取当前执行的协程
      * @return 当前协程指针
      */
-    static Fiber* GetCurrentFiber();
+    static Fiber* get_current_fiber();
 
     /**
      * @brief 设置调度器协程
      * @param fiber 调度器协程指针
      */
-    static void SetSchedulerFiber(Fiber* fiber);
+    static void set_scheduler_fiber(Fiber* fiber);
 
     /**
      * @brief 获取调度器协程
      * @return 调度器协程指针
      */
-    static Fiber* GetSchedulerFiber();
+    static Fiber* get_scheduler_fiber();
 
     /**
      * @brief 设置当前调度器
      * @param scheduler 调度器指针
      */
-    static void SetScheduler(Scheduler* scheduler);
+    static void set_scheduler(Scheduler* scheduler);
 
     /**
      * @brief 获取当前调度器
      * @return 调度器指针
      */
-    static Scheduler* GetScheduler();
+    static Scheduler* get_scheduler();
 
 private:
     Fiber* current_fiber_ = nullptr;      // 当前执行的协程
