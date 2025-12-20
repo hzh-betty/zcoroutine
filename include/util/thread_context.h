@@ -8,8 +8,14 @@ class Scheduler;
 
 /**
  * @brief 线程上下文类
- * 集中管理线程本地状态，包括当前协程、调度器协程、调度器指针等
+ * 集中管理线程本地状态，包括主协程、当前协程、调度器协程、调度器指针等
  * 使用thread_local变量存储，每个线程独立
+ * 
+ * 协程切换层次结构：
+ *   main_fiber <---> scheduler_fiber <---> user_fiber
+ *   - main_fiber: 线程入口协程，保存线程的原始上下文
+ *   - scheduler_fiber: 调度器协程，运行Scheduler::run()
+ *   - user_fiber: 用户协程，执行用户任务
  */
 class ThreadContext {
 public:
@@ -18,6 +24,18 @@ public:
      * @return 当前线程的ThreadContext指针，如果不存在则创建
      */
     static ThreadContext* get_current();
+
+    /**
+     * @brief 设置主协程
+     * @param fiber 主协程指针
+     */
+    static void set_main_fiber(Fiber* fiber);
+
+    /**
+     * @brief 获取主协程
+     * @return 主协程指针
+     */
+    static Fiber* get_main_fiber();
 
     /**
      * @brief 设置当前执行的协程
@@ -56,6 +74,7 @@ public:
     static Scheduler* get_scheduler();
 
 private:
+    Fiber* main_fiber_ = nullptr;         // 主协程（线程入口协程）
     Fiber* current_fiber_ = nullptr;      // 当前执行的协程
     Fiber* scheduler_fiber_ = nullptr;    // 调度器协程
     Scheduler* scheduler_ = nullptr;      // 当前调度器

@@ -90,8 +90,15 @@ public:
 protected:
     /**
      * @brief 工作线程主循环
+     * 初始化main_fiber和scheduler_fiber，然后启动调度
      */
     void run();
+
+    /**
+     * @brief 调度循环
+     * 运行在scheduler_fiber中，负责调度和执行用户协程
+     */
+    void schedule_loop();
 
 private:
     std::string name_;                              // 调度器名称

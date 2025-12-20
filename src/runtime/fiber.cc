@@ -75,39 +75,45 @@ Fiber::~Fiber() {
     }
 }
 
-void Fiber::resume(ptr caller) {
+void Fiber::resume() {
     assert(state_ != State::kTerminated && "Cannot resume terminated fiber");
     assert(state_ != State::kRunning && "Fiber is already running");
     
-    // 保存调用者
-    if (caller) {
-        caller_fiber_ = caller;
+    // 获取当前协程上下文
+    Fiber* prev_fiber = ThreadContext::get_current_fiber();
+    
+    // 如果没有当前协程，自动创建main_fiber（用于独立测试场景）
+    // 注意：这是为了兼容没有Scheduler的情况
+    static thread_local std::unique_ptr<Fiber> t_implicit_main_fiber;
+    if (!prev_fiber) {
+        if (!t_implicit_main_fiber) {
+            t_implicit_main_fiber = std::unique_ptr<Fiber>(new Fiber());
+            ThreadContext::set_main_fiber(t_implicit_main_fiber.get());
+        }
+        prev_fiber = t_implicit_main_fiber.get();
+        ThreadContext::set_current_fiber(prev_fiber);
     }
     
     // 设置为当前协程
-    Fiber* prev_fiber = ThreadContext::get_current_fiber();
     ThreadContext::set_current_fiber(this);
     
     // 更新状态
     State prev_state = state_;
     state_ = State::kRunning;
     
-    ZCOROUTINE_LOG_DEBUG("Fiber resume: name={}, id={}, prev_state={}, caller={}", 
-                         name_, id_, static_cast<int>(prev_state), 
-                         caller ? caller->name() : "none");
+    ZCOROUTINE_LOG_DEBUG("Fiber resume: name={}, id={}, prev_state={}", 
+                         name_, id_, static_cast<int>(prev_state));
     
     // 切换上下文
-    if (prev_fiber && prev_fiber->context_) {
-        Context::swap_context(prev_fiber->context_.get(), context_.get());
-    } else {
-        // 没有前一个协程，创建临时主协程上下文
-        Context temp_ctx;
-        temp_ctx.get_context();
-        Context::swap_context(&temp_ctx, context_.get());
-    }
+    Context::swap_context(prev_fiber->context_.get(), context_.get());
     
     // 协程执行完毕后会切换回来，恢复前一个协程
     ThreadContext::set_current_fiber(prev_fiber);
+    
+    // 如果协程结束并且有异常，重新抛出
+    if (state_ == State::kTerminated && exception_) {
+        std::rethrow_exception(exception_);
+    }
 }
 
 void Fiber::yield() {
@@ -124,17 +130,26 @@ void Fiber::yield() {
     
     ZCOROUTINE_LOG_DEBUG("Fiber yield: name={}, id={}", cur_fiber->name_, cur_fiber->id_);
     
-    // 切换回调用者或主协程
-    auto caller = cur_fiber->caller_fiber_.lock();
-    if (caller && caller->context_) {
-        ThreadContext::set_current_fiber(caller.get());
-        Context::swap_context(cur_fiber->context_.get(), caller->context_.get());
+    // 确定切换目标：
+    // - 如果当前不是scheduler_fiber，切换回scheduler_fiber
+    // - 如果当前是scheduler_fiber或没有scheduler_fiber，切换回main_fiber
+    Fiber* scheduler_fiber = ThreadContext::get_scheduler_fiber();
+    Fiber* main_fiber = ThreadContext::get_main_fiber();
+    
+    Fiber* target_fiber = nullptr;
+    if (scheduler_fiber && cur_fiber != scheduler_fiber) {
+        // 当前是user_fiber，切换回scheduler_fiber
+        target_fiber = scheduler_fiber;
+    } else if (main_fiber) {
+        // 当前是scheduler_fiber或没有scheduler_fiber，切换回main_fiber
+        target_fiber = main_fiber;
+    }
+    
+    if (target_fiber && target_fiber->context_) {
+        ThreadContext::set_current_fiber(target_fiber);
+        Context::swap_context(cur_fiber->context_.get(), target_fiber->context_.get());
     } else {
-        // 没有调用者，创建临时上下文切换
-        Context temp_ctx;
-        temp_ctx.get_context();
-        ThreadContext::set_current_fiber(nullptr);
-        Context::swap_context(cur_fiber->context_.get(), &temp_ctx);
+        ZCOROUTINE_LOG_ERROR("Fiber::yield failed: no valid target fiber to yield to");
     }
 }
 
@@ -182,13 +197,30 @@ void Fiber::main_func() {
                              cur_fiber->name_, cur_fiber->id_);
     }
     
-    // 协程结束，切换回调用者
-    auto caller = cur_fiber->caller_fiber_.lock();
-    if (caller && caller->context_) {
-        ZCOROUTINE_LOG_DEBUG("Fiber switching back to caller: name={}, id={}, caller={}", 
-                             cur_fiber->name_, cur_fiber->id_, caller->name());
-        ThreadContext::set_current_fiber(caller.get());
-        Context::swap_context(cur_fiber->context_.get(), caller->context_.get());
+    // 协程结束，确定切换目标：
+    // - 如果当前不是scheduler_fiber，切换回scheduler_fiber
+    // - 如果当前是scheduler_fiber或没有scheduler_fiber，切换回main_fiber
+    Fiber* scheduler_fiber = ThreadContext::get_scheduler_fiber();
+    Fiber* main_fiber = ThreadContext::get_main_fiber();
+    
+    Fiber* target_fiber = nullptr;
+    if (scheduler_fiber && cur_fiber != scheduler_fiber) {
+        // 当前是user_fiber，切换回scheduler_fiber
+        target_fiber = scheduler_fiber;
+        ZCOROUTINE_LOG_DEBUG("Fiber switching back to scheduler: name={}, id={}", 
+                             cur_fiber->name_, cur_fiber->id_);
+    } else if (main_fiber) {
+        // 当前是scheduler_fiber或没有scheduler_fiber，切换回main_fiber
+        target_fiber = main_fiber;
+        ZCOROUTINE_LOG_DEBUG("Fiber switching back to main_fiber: name={}, id={}", 
+                             cur_fiber->name_, cur_fiber->id_);
+    }
+    
+    if (target_fiber && target_fiber->context_) {
+        ThreadContext::set_current_fiber(target_fiber);
+        Context::swap_context(cur_fiber->context_.get(), target_fiber->context_.get());
+    } else {
+        ZCOROUTINE_LOG_ERROR("Fiber main_func: no valid target fiber to switch to");
     }
 }
 

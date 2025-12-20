@@ -14,6 +14,14 @@ ThreadContext* ThreadContext::get_current() {
     return t_thread_context.get();
 }
 
+void ThreadContext::set_main_fiber(Fiber* fiber) {
+    get_current()->main_fiber_ = fiber;
+}
+
+Fiber* ThreadContext::get_main_fiber() {
+    return get_current()->main_fiber_;
+}
+
 void ThreadContext::set_current_fiber(Fiber* fiber) {
     get_current()->current_fiber_ = fiber;
 }

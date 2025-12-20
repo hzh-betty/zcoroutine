@@ -45,9 +45,9 @@ public:
 
     /**
      * @brief 恢复协程执行
-     * @param caller 调用者协程，默认为nullptr
+     * 从当前协程切换到此协程
      */
-    void resume(ptr caller = nullptr);
+    void resume();
 
     /**
      * @brief 挂起协程
@@ -109,6 +109,9 @@ public:
     static void set_this(Fiber* fiber);
 
 private:
+    // 友元声明：Scheduler需要访问私有构造函数创建main_fiber
+    friend class Scheduler;
+
     /**
      * @brief 主协程构造函数（私有）
      * 用于创建线程的主协程
@@ -122,8 +125,6 @@ private:
 
     std::unique_ptr<Context> context_;      // 上下文对象
     void* stack_ptr_ = nullptr;             // 栈指针（独立栈模式）
-
-    std::weak_ptr<Fiber> caller_fiber_;     // 调用者协程（弱引用防止循环）
 
     std::function<void()> callback_;        // 协程执行函数
     std::exception_ptr exception_;          // 协程异常指针

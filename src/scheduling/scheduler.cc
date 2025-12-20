@@ -112,13 +112,42 @@ void Scheduler::set_this(Scheduler* scheduler) {
 void Scheduler::run() {
     ZCOROUTINE_LOG_DEBUG("Scheduler[{}] worker thread entering run loop", name_);
     
+    // 创建主协程（保存线程的原始上下文）
+    Fiber main_fiber_obj;  // 使用私有构造函数创建主协程
+    ThreadContext::set_main_fiber(&main_fiber_obj);
+    ThreadContext::set_current_fiber(&main_fiber_obj);
+    
+    // 创建调度器协程，它将运行调度循环
+    auto scheduler_fiber = std::make_shared<Fiber>(
+        [this]() { this->schedule_loop(); },
+        StackAllocator::kDefaultStackSize,
+        "scheduler"
+    );
+    ThreadContext::set_scheduler_fiber(scheduler_fiber.get());
+    
+    ZCOROUTINE_LOG_DEBUG("Scheduler[{}] main_fiber and scheduler_fiber created", name_);
+    
+    // 启动调度器协程
+    scheduler_fiber->resume();
+    
+    // 调度器协程结束后，清理
+    ThreadContext::set_scheduler_fiber(nullptr);
+    ThreadContext::set_main_fiber(nullptr);
+    ThreadContext::set_current_fiber(nullptr);
+    
+    ZCOROUTINE_LOG_DEBUG("Scheduler[{}] worker thread exiting run loop", name_);
+}
+
+void Scheduler::schedule_loop() {
+    ZCOROUTINE_LOG_DEBUG("Scheduler[{}] schedule_loop starting", name_);
+    
     while (!stopping_.load(std::memory_order_relaxed)) {
         Task task;
         
         // 从队列中取出任务（阻塞等待）
         if (!task_queue_->pop(task)) {
             // 队列已停止
-            ZCOROUTINE_LOG_DEBUG("Scheduler[{}] task queue stopped, exiting run loop", name_);
+            ZCOROUTINE_LOG_DEBUG("Scheduler[{}] task queue stopped, exiting schedule_loop", name_);
             break;
         }
         
@@ -183,7 +212,7 @@ void Scheduler::run() {
         active_thread_count_.fetch_sub(1, std::memory_order_relaxed);
     }
     
-    ZCOROUTINE_LOG_DEBUG("Scheduler[{}] worker thread exiting run loop", name_);
+    ZCOROUTINE_LOG_DEBUG("Scheduler[{}] schedule_loop ended", name_);
 }
 
 } // namespace zcoroutine
