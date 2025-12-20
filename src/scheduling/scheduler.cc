@@ -1,11 +1,13 @@
 #include "scheduling/scheduler.h"
+
+#include <utility>
 #include "util/thread_context.h"
 #include "util/zcoroutine_logger.h"
 
 namespace zcoroutine {
 
-Scheduler::Scheduler(int thread_count, const std::string& name)
-    : name_(name)
+Scheduler::Scheduler(int thread_count, std::string name)
+    : name_(std::move(name))
     , thread_count_(thread_count)
     , task_queue_(std::make_unique<TaskQueue>())
     , stopping_(false)
@@ -97,7 +99,7 @@ void Scheduler::schedule(std::function<void()> func) {
 }
 
 void Scheduler::set_fiber_pool(FiberPool::ptr pool) {
-    fiber_pool_ = pool;
+    fiber_pool_ = std::move(pool);
     ZCOROUTINE_LOG_INFO("Scheduler[{}] fiber pool configured", name_);
 }
 
@@ -133,7 +135,7 @@ void Scheduler::run() {
         // 执行任务
         if (task.fiber) {
             // 执行协程
-            Fiber::ptr fiber = task.fiber;
+            const Fiber::ptr fiber = task.fiber;
             
             ZCOROUTINE_LOG_DEBUG("Scheduler[{}] executing fiber name={}, id={}, active_threads={}",
                                  name_, fiber->name(), fiber->id(), active);

@@ -27,7 +27,7 @@ public:
      * @param thread_count 线程数量
      * @param name 调度器名称
      */
-    explicit Scheduler(int thread_count = 1, const std::string& name = "Scheduler");
+    explicit Scheduler(int thread_count = 1, std::string  name = "Scheduler");
 
     /**
      * @brief 析构函数
@@ -107,9 +107,9 @@ protected:
 private:
     std::string name_;                              // 调度器名称
     int thread_count_;                              // 线程数量
-    std::vector<std::unique_ptr<std::thread>> threads_;  // 线程池（使用std::thread）
+    std::vector<std::unique_ptr<std::thread>> threads_;  // 线程池
     std::unique_ptr<TaskQueue> task_queue_;         // 任务队列
-    FiberPool::ptr fiber_pool_;                     // 协程池（可选）
+    FiberPool::ptr fiber_pool_;                     // 协程池
     
     std::atomic<bool> stopping_;                    // 停止标志
     std::atomic<int> active_thread_count_;          // 活跃线程数

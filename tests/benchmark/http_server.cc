@@ -7,11 +7,10 @@
 
 #include "io/io_scheduler.h"
 #include "hook/hook.h"
-#include "zcoroutine_logger.h"
+#include "util/zcoroutine_logger.h"
 
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <arpa/inet.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <cstring>
@@ -177,7 +176,7 @@ int main(int argc, char* argv[]) {
     
     // 创建IoScheduler（使用指定数量的工作线程）
     auto io_scheduler = IoScheduler::CreateInstance(thread_num, true, "HttpServer");
-    g_io_scheduler = io_scheduler.get();
+    g_io_scheduler = io_scheduler;
     
     // 启用Hook（使系统调用异步化）
     set_hook_enable(true);

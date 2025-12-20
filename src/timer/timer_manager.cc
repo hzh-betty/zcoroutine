@@ -8,7 +8,7 @@ namespace zcoroutine {
 
 // 获取当前时间（毫秒）
 static uint64_t get_current_ms() {
-    struct timeval tv;
+    struct timeval tv{};
     gettimeofday(&tv, nullptr);
     return tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
@@ -24,7 +24,7 @@ Timer::ptr TimerManager::add_timer(uint64_t timeout, std::function<void()> callb
     return timer;
 }
 
-int TimerManager::get_next_timeout() {
+int TimerManager::get_next_timeout() const {
     std::lock_guard<std::mutex> lock(mutex_);
     
     if (timers_.empty()) {
@@ -67,7 +67,7 @@ std::vector<std::function<void()>> TimerManager::list_expired_callbacks() {
         it = timers_.erase(it);
         
         if (!timer->cancelled_) {
-            callbacks.push_back([timer]() {
+            callbacks.emplace_back([timer]() {
                 timer->execute();
             });
             expired_count++;

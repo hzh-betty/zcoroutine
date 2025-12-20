@@ -30,7 +30,7 @@ public:
      * @brief 获取下一个定时器的超时时间
      * @return 超时时间（毫秒），如果没有定时器返回-1
      */
-    int get_next_timeout();
+    int get_next_timeout() const;
 
     /**
      * @brief 获取所有到期的定时器回调

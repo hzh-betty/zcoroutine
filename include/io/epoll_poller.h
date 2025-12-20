@@ -12,7 +12,7 @@ namespace zcoroutine {
  * @brief Epoll封装类
  * 
  * 封装Linux epoll系统调用，提供IO事件的添加、删除、等待功能。
- * 使用边缘触发（EPOLLET）模式。
+ * 使用边缘触发模式。
  */
 class EpollPoller : public NonCopyable {
 public:

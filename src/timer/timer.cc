@@ -8,7 +8,7 @@ namespace zcoroutine {
 
 // 获取当前时间（毫秒）
 static uint64_t get_current_ms() {
-    struct timeval tv;
+    struct timeval tv{};
     gettimeofday(&tv, nullptr);
     return tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }

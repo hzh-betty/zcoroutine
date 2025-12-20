@@ -7,9 +7,9 @@ namespace zcoroutine {
         builder->buildLoggerLevel(level);
         // 日志格式：[文件:行号] [时间戳] 日志内容
         builder->buildLoggerFormatter("[%f:%l] [%d{%Y-%m-%d %H:%M:%S}] %m%n");
-        builder->buildLoggerType(zlog::LoggerType::LOGGER_ASYNC);
+        builder->buildLoggerType(zlog::LoggerType::LOGGER_SYNC);
         builder->buildLoggerSink<zlog::FileSink>("./logfile/zcoroutine.log");
         builder->buildLoggerSink<zlog::StdOutSink>();
-        zcoroutine_logger = builder->build();
+        builder->build();
     }
 }

@@ -3,11 +3,13 @@
 
 #include <memory>
 #include <atomic>
+#include <vector>
 #include "scheduling/scheduler.h"
 #include "io/epoll_poller.h"
-#include "io/fd_manager.h"
+#include "io/fd_context.h"
 #include "timer/timer_manager.h"
 #include "util/noncopyable.h"
+#include "sync/rw_mutex.h"
 
 namespace zcoroutine {
 
@@ -20,25 +22,12 @@ namespace zcoroutine {
 class IoScheduler : public NonCopyable {
 public:
     using ptr = std::shared_ptr<IoScheduler>;
-    
-    /**
-     * @brief 创建IoScheduler实例
-     * @param thread_count 线程数量
-     * @param use_caller 是否使用调用线程
-     * @param name 调度器名称
-     */
-    static IoScheduler::ptr CreateInstance(int thread_count = 1, bool use_caller = true, 
-                                          const std::string& name = "IoScheduler");
-    
-    /**
-     * @brief 构造函数
-     * @param thread_count 线程数量
-     * @param use_caller 是否使用调用线程
-     * @param name 调度器名称
-     */
-    explicit IoScheduler(int thread_count = 1, bool use_caller = true, 
+
+
+    explicit IoScheduler(int thread_count = 1, bool use_caller = true,
                         const std::string& name = "IoScheduler");
-    
+
+    IoScheduler(int thread_count, const std::string &name);
     /**
      * @brief 析构函数
      */
@@ -81,7 +70,7 @@ public:
      * @param event 事件类型
      * @return 成功返回0，失败返回-1
      */
-    int del_event(int fd, FdContext::Event event);
+    int del_event(int fd, FdContext::Event event) const;
     
     /**
      * @brief 取消IO事件
@@ -89,7 +78,7 @@ public:
      * @param event 事件类型
      * @return 成功返回0，失败返回-1
      */
-    int cancel_event(int fd, FdContext::Event event);
+    int cancel_event(int fd, FdContext::Event event) const;
     
     /**
      * @brief 添加定时器
@@ -113,7 +102,7 @@ public:
     /**
      * @brief 获取单例
      */
-    static IoScheduler::ptr GetInstance();
+    static ptr GetInstance();
 
 private:
     /**
@@ -124,19 +113,23 @@ private:
     /**
      * @brief 唤醒IO线程
      */
-    void wake_up();
+    void wake_up() const;
+
+    // 获取/创建 fd 对应的 FdContext（epoll 事件上下文）
+    FdContext::ptr get_fd_context(int fd, bool auto_create);
 
 private:
     Scheduler::ptr scheduler_;              // 任务调度器
     EpollPoller::ptr epoll_poller_;         // Epoll封装
     TimerManager::ptr timer_manager_;       // 定时器管理器
-    FdManager::ptr fd_manager_;             // 文件描述符管理器
-    
+
+    std::vector<FdContext::ptr> fd_contexts_;
+
     std::unique_ptr<std::thread> io_thread_;  // IO线程
     std::atomic<bool> stopping_;              // 停止标志
-    
-    int wake_fd_[2];                          // 用于唤醒epoll的管道
-    
+
+    int wake_fd_[2]{};                          // 用于唤醒epoll的管道
+
     static IoScheduler::ptr s_instance_;      // 单例
 };
 

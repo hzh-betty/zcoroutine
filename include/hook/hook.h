@@ -1,5 +1,5 @@
-#ifndef ZCOROUTINE_HOOK_H
-#define ZCOROUTINE_HOOK_H
+#ifndef ZCOROUTINE_HOOK_H_
+#define ZCOROUTINE_HOOK_H_
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -100,4 +100,4 @@ extern getsockopt_func getsockopt_f;
 
 }  // extern "C"
 
-#endif  // ZCOROUTINE_HOOK_H
+#endif  // ZCOROUTINE_HOOK_H_
