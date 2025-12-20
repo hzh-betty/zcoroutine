@@ -5,6 +5,8 @@
 
 namespace zcoroutine {
 
+constexpr size_t StackAllocator::kDefaultStackSize;
+
 void* StackAllocator::allocate(size_t size) {
     if (size == 0) {
         ZCOROUTINE_LOG_ERROR("StackAllocator::allocate failed: size is 0");

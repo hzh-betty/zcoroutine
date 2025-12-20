@@ -72,46 +72,50 @@ message(STATUS "  Static Library: zcoroutine_static")
 file(GLOB TEST_UNIT_SRCS ${PROJECT_SOURCE_DIR}/tests/unit/*.cc)
 file(GLOB TEST_INTEGRATION_SRCS ${PROJECT_SOURCE_DIR}/tests/integration/*.cc)
 
-# 设置测试输出目录
-set(TEST_OUTPUT_DIR ${CMAKE_BINARY_DIR}/bin/tests)
-file(MAKE_DIRECTORY ${TEST_OUTPUT_DIR})
-
-# 单元测试可执行文件
-if(TEST_UNIT_SRCS)
+# 查找GTest
+if(TEST_UNIT_SRCS OR TEST_INTEGRATION_SRCS)
     enable_testing()
     find_package(GTest REQUIRED)
-    add_executable(zcoroutine_unit_tests ${TEST_UNIT_SRCS})
-    target_include_directories(zcoroutine_unit_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
-    target_link_libraries(zcoroutine_unit_tests PRIVATE
-            zcoroutine_shared
-            GTest::gtest
-            pthread
-    )
-    set_target_properties(zcoroutine_unit_tests PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY ${TEST_OUTPUT_DIR}
-    )
-    include(GoogleTest)
-    gtest_discover_tests(zcoroutine_unit_tests)
-    message(STATUS "Configured unit tests: ${TEST_UNIT_SRCS}")
 endif()
 
-# 集成测试可执行文件
+# 为每个单元测试文件创建独立的测试目标
+if(TEST_UNIT_SRCS)
+    foreach(test_source ${TEST_UNIT_SRCS})
+        # 获取文件名（不含路径和扩展名）
+        get_filename_component(test_name ${test_source} NAME_WE)
+        # 创建可执行文件
+        add_executable(${test_name} ${test_source})
+        # 链接库
+        target_link_libraries(${test_name} PRIVATE
+                zcoroutine_shared
+                GTest::gtest
+                pthread
+        )
+        # 自动发现测试
+        include(GoogleTest)
+        gtest_discover_tests(${test_name})
+        message(STATUS "Configured unit test: ${test_name}")
+    endforeach()
+endif()
+
+# 为每个集成测试文件创建独立的测试目标
 if(TEST_INTEGRATION_SRCS)
-    enable_testing()
-    find_package(GTest REQUIRED)
-    add_executable(zcoroutine_integration_tests ${TEST_INTEGRATION_SRCS})
-    target_include_directories(zcoroutine_integration_tests PRIVATE ${PROJECT_SOURCE_DIR}/include)
-    target_link_libraries(zcoroutine_integration_tests PRIVATE
-            zcoroutine_shared
-            GTest::gtest
-            pthread
-    )
-    set_target_properties(zcoroutine_integration_tests PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY ${TEST_OUTPUT_DIR}
-    )
-    include(GoogleTest)
-    gtest_discover_tests(zcoroutine_integration_tests)
-    message(STATUS "Configured integration tests: ${TEST_INTEGRATION_SRCS}")
+    foreach(test_source ${TEST_INTEGRATION_SRCS})
+        # 获取文件名（不含路径和扩展名）
+        get_filename_component(test_name ${test_source} NAME_WE)
+        # 创建可执行文件
+        add_executable(${test_name} ${test_source})
+        # 链接库
+        target_link_libraries(${test_name} PRIVATE
+                zcoroutine_shared
+                GTest::gtest
+                pthread
+        )
+        # 自动发现测试
+        include(GoogleTest)
+        gtest_discover_tests(${test_name})
+        message(STATUS "Configured integration test: ${test_name}")
+    endforeach()
 endif()
 
 # Benchmark 可执行文件
@@ -121,9 +125,6 @@ if(EXISTS ${PROJECT_SOURCE_DIR}/tests/benchmark/http_server.cc)
     target_link_libraries(http_server_benchmark PRIVATE
             zcoroutine_shared
             pthread
-    )
-    set_target_properties(http_server_benchmark PROPERTIES
-            RUNTIME_OUTPUT_DIRECTORY ${TEST_OUTPUT_DIR}
     )
     message(STATUS "Configured benchmark: http_server")
 endif()
