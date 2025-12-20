@@ -5,6 +5,7 @@
 #include <chrono>
 #include "scheduling/task_queue.h"
 #include "runtime/fiber.h"
+#include "util/zcoroutine_logger.h"
 
 using namespace zcoroutine;
 
@@ -538,6 +539,9 @@ TEST_F(TaskQueueTest, FiberTaskWithYield) {
 
 int main(int argc, char** argv)
 {
+    // 初始化日志系统
+    zcoroutine::init_logger(zlog::LogLevel::value::INFO);
+    
     ::testing::InitGoogleTest(&argc,argv);
     return RUN_ALL_TESTS();
 }

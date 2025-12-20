@@ -148,10 +148,22 @@ void Scheduler::run() {
                                      name_, fiber->name(), fiber->id());
             }
             
-            // 如果协程终止，归还到池中
+            // 如果协程终止，先检查是否有异常，然后归还到池中
             if (fiber->state() == Fiber::State::kTerminated) {
                 ZCOROUTINE_LOG_DEBUG("Scheduler[{}] fiber terminated: name={}, id={}",
                                      name_, fiber->name(), fiber->id());
+                
+                // 尝试检查并记录异常（不中断调度）
+                try {
+                    fiber->rethrow_if_exception();
+                } catch (const std::exception& e) {
+                    ZCOROUTINE_LOG_ERROR("Scheduler[{}] fiber had unhandled exception: name={}, id={}, what={}",
+                                         name_, fiber->name(), fiber->id(), e.what());
+                } catch (...) {
+                    ZCOROUTINE_LOG_ERROR("Scheduler[{}] fiber had unknown exception: name={}, id={}",
+                                         name_, fiber->name(), fiber->id());
+                }
+                
                 FiberPool::GetInstance()->release(fiber);
             }
         } else if (task.callback) {

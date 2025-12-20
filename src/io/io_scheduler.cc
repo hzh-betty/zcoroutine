@@ -160,7 +160,12 @@ namespace zcoroutine {
         }
         else {
             // 如果没有回调，使用当前协程
-            event_ctx.fiber = Fiber::get_this()->shared_from_this();
+            Fiber* current_fiber = Fiber::get_this();
+            if (!current_fiber) {
+                ZCOROUTINE_LOG_ERROR("IoScheduler::add_event no callback and no current fiber, fd={}, event={}", fd, event);
+                return -1;
+            }
+            event_ctx.fiber = current_fiber->shared_from_this();
         }
 
         // 添加事件到FdContext

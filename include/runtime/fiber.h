@@ -81,6 +81,16 @@ public:
     State state() const { return state_; }
 
     /**
+     * @brief 检查并重抛协程中的异常（如果有）
+     * 应在协程执行完毕后调用，以传播异常给调用者
+     */
+    void rethrow_if_exception() {
+        if (exception_) {
+            std::rethrow_exception(exception_);
+        }
+    }
+
+    /**
      * @brief 协程主函数（静态）
      * 在协程上下文中执行
      */

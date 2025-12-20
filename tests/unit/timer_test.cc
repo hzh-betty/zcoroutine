@@ -5,6 +5,7 @@
 #include <vector>
 #include "timer/timer.h"
 #include "timer/timer_manager.h"
+#include "util/zcoroutine_logger.h"
 
 using namespace zcoroutine;
 
@@ -482,6 +483,9 @@ TEST_F(TimerTest, TimerRefreshReorder) {
 
 int main(int argc, char** argv)
 {
+    // 初始化日志系统
+    zcoroutine::init_logger(zlog::LogLevel::value::INFO);
+    
     ::testing::InitGoogleTest(&argc,argv);
     return RUN_ALL_TESTS();
 }

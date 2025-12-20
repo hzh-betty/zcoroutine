@@ -72,6 +72,7 @@ message(STATUS "  Static Library: zcoroutine_static")
 file(GLOB TEST_UNIT_SRCS ${PROJECT_SOURCE_DIR}/tests/unit/*.cc)
 file(GLOB TEST_INTEGRATION_SRCS ${PROJECT_SOURCE_DIR}/tests/integration/*.cc)
 
+
 # 查找GTest
 if(TEST_UNIT_SRCS OR TEST_INTEGRATION_SRCS)
     enable_testing()
@@ -85,15 +86,16 @@ if(TEST_UNIT_SRCS)
         get_filename_component(test_name ${test_source} NAME_WE)
         # 创建可执行文件
         add_executable(${test_name} ${test_source})
+        # 设置包含目录
+        target_include_directories(${test_name} PRIVATE ${PROJECT_SOURCE_DIR}/include)
         # 链接库
         target_link_libraries(${test_name} PRIVATE
                 zcoroutine_shared
                 GTest::gtest
                 pthread
         )
-        # 自动发现测试
-        include(GoogleTest)
-        gtest_discover_tests(${test_name})
+        # 添加为CTest测试
+        add_test(NAME ${test_name} COMMAND ${test_name})
         message(STATUS "Configured unit test: ${test_name}")
     endforeach()
 endif()
@@ -105,15 +107,16 @@ if(TEST_INTEGRATION_SRCS)
         get_filename_component(test_name ${test_source} NAME_WE)
         # 创建可执行文件
         add_executable(${test_name} ${test_source})
+        # 设置包含目录
+        target_include_directories(${test_name} PRIVATE ${PROJECT_SOURCE_DIR}/include)
         # 链接库
         target_link_libraries(${test_name} PRIVATE
                 zcoroutine_shared
                 GTest::gtest
                 pthread
         )
-        # 自动发现测试
-        include(GoogleTest)
-        gtest_discover_tests(${test_name})
+        # 添加为CTest测试
+        add_test(NAME ${test_name} COMMAND ${test_name})
         message(STATUS "Configured integration test: ${test_name}")
     endforeach()
 endif()

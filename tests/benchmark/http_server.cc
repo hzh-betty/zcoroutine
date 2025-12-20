@@ -119,6 +119,9 @@ void accept_connection() {
 }
 
 int main(int argc, char* argv[]) {
+    // 初始化日志系统
+    zcoroutine::init_logger(zlog::LogLevel::value::INFO);
+    
     // 默认端口
     int port = 8080;
     int thread_num = 4;

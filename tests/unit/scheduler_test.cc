@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 #include "scheduling/scheduler.h"
 #include "runtime/fiber.h"
+#include "util/zcoroutine_logger.h"
 #include <atomic>
 #include <thread>
 #include <chrono>
@@ -155,6 +156,9 @@ TEST_F(SchedulerTest, ScheduleWithBind) {
 
 int main(int argc, char** argv)
 {
+    // 初始化日志系统
+    zcoroutine::init_logger(zlog::LogLevel::value::INFO);
+    
     ::testing::InitGoogleTest(&argc,argv);
     return RUN_ALL_TESTS();
 }

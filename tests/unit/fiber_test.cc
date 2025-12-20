@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 #include "runtime/fiber.h"
+#include "util/zcoroutine_logger.h"
 #include <vector>
 #include <set>
 #include <thread>
@@ -531,6 +532,9 @@ TEST_F(FiberTest, ManyYields) {
 
 int main(int argc, char** argv)
 {
+    // 初始化日志系统
+    zcoroutine::init_logger(zlog::LogLevel::value::INFO);
+    
     ::testing::InitGoogleTest(&argc,argv);
     return RUN_ALL_TESTS();
 }

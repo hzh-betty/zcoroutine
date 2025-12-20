@@ -14,6 +14,11 @@ static uint64_t get_current_ms() {
 }
 
 Timer::ptr TimerManager::add_timer(uint64_t timeout, std::function<void()> callback, bool recurring) {
+    if (!callback) {
+        ZCOROUTINE_LOG_WARN("TimerManager::add_timer: null callback provided, timeout={}ms", timeout);
+        // 仍然创建 Timer，但会在 execute 时被忽略
+    }
+    
     auto timer = std::make_shared<Timer>(timeout, callback, recurring);
     
     std::lock_guard<std::mutex> lock(mutex_);
@@ -26,6 +31,11 @@ Timer::ptr TimerManager::add_timer(uint64_t timeout, std::function<void()> callb
 
 Timer::ptr TimerManager::add_condition_timer(uint64_t timeout, std::function<void()> callback,
                                              std::weak_ptr<void> weak_cond, bool recurring) {
+    if (!callback) {
+        ZCOROUTINE_LOG_WARN("TimerManager::add_condition_timer: null callback provided, timeout={}ms", timeout);
+        return add_timer(timeout, nullptr, recurring);
+    }
+    
     // 包装回调函数，添加条件检查
     auto wrapper_callback = [weak_cond, callback]() {
         // 检查条件是否仍然有效
