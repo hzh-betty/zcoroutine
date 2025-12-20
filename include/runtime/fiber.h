@@ -10,18 +10,11 @@
 
 namespace zcoroutine {
 
-// 前向声明
-class SharedStackPool;
-struct StackMem;
-
 /**
- * @brief 协程类
+ * * @brief 协程类
  * 管理协程的生命周期、状态和上下文切换
- * 支持独立栈和共享栈两种模式
  */
 class Fiber : public std::enable_shared_from_this<Fiber> {
-friend class SharedStackPool;
-
 public:
     using ptr = std::shared_ptr<Fiber>;
 
@@ -40,14 +33,10 @@ public:
      * @param func 协程执行函数
      * @param stack_size 栈大小，默认128KB
      * @param name 协程名称，默认为空（自动生成fiber_id）
-     * @param use_shared_stack 是否使用共享栈，默认false
-     * @param stack_pool 共享栈池指针，use_shared_stack为true时必须提供
      */
     explicit Fiber(std::function<void()> func,
                    size_t stack_size = StackAllocator::kDefaultStackSize,
-                   const std::string& name = "",
-                   bool use_shared_stack = false,
-                   SharedStackPool* stack_pool = nullptr);
+                   const std::string& name = "");
 
     /**
      * @brief 析构函数
@@ -92,12 +81,6 @@ public:
     State state() const { return state_; }
 
     /**
-     * @brief 是否使用共享栈
-     * @return true表示共享栈，false表示独立栈
-     */
-    bool is_shared_stack() const { return use_shared_stack_; }
-
-    /**
      * @brief 协程主函数（静态）
      * 在协程上下文中执行
      */
@@ -134,45 +117,6 @@ private:
 
     std::function<void()> callback_;        // 协程执行函数
     std::exception_ptr exception_;          // 协程异常指针
-
-    // 共享栈相关
-    bool use_shared_stack_ = false;         // 是否使用共享栈
-    SharedStackPool* stack_pool_ = nullptr; // 共享栈池指针
-    StackMem* shared_stack_ = nullptr;      // 当前使用的共享栈
-    std::unique_ptr<char[]> save_buffer_;   // 共享栈保存缓冲区
-    size_t save_size_ = 0;                  // 保存数据大小
-    char* stack_sp_ = nullptr;              // 栈指针位置
-
-private:
-    /**
-     * @brief 获取共享栈信息（用于save_stack）
-     * @param[out] shared_stack_ref 共享栈指针的指针
-     * @param[out] stack_sp_ref 栈指针位置的指针
-     * @param[out] save_size_ref 保存大小的指针
-     * @param[out] save_buffer_ref 保存缓冲区的指针的指针
-     */
-    void get_shared_stack_info(StackMem** shared_stack_ref, char** stack_sp_ref, 
-                              size_t** save_size_ref, char*** save_buffer_ref) const {
-        *shared_stack_ref = shared_stack_;
-        *stack_sp_ref = stack_sp_;
-        *save_size_ref = const_cast<size_t*>(&save_size_);
-        *save_buffer_ref = save_buffer_ ? const_cast<char**>(&save_buffer_.get()[0]) : nullptr;
-    }
-    
-    /**
-     * @brief 获取恢复栈信息（用于restore_stack）
-     * @param[out] shared_stack_ref 共享栈指针的指针
-     * @param[out] stack_sp_ref 栈指针位置的指针的指针
-     * @param[out] save_size_ref 保存大小的指针
-     * @param[out] save_buffer_ref 保存缓冲区的指针的指针
-     */
-    void get_restore_stack_info(StackMem** shared_stack_ref, char*** stack_sp_ref, 
-                               size_t** save_size_ref, char*** save_buffer_ref) const {
-        *shared_stack_ref = shared_stack_;
-        *stack_sp_ref = &stack_sp_;
-        *save_size_ref = const_cast<size_t*>(&save_size_);
-        *save_buffer_ref = save_buffer_ ? const_cast<char**>(&save_buffer_.get()[0]) : nullptr;
-    }
 
     // 全局协程计数器（线程安全）
     static std::atomic<uint64_t> s_fiber_count_;

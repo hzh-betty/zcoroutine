@@ -1,4 +1,5 @@
 #include "io/fd_manager.h"
+#include "hook/hook.h"
 
 #include <sys/socket.h>
 #include <unistd.h>
@@ -8,10 +9,6 @@
 #include <algorithm>
 
 #include "util/zcoroutine_logger.h"
-
-extern "C" {
-    extern int (*fcntl_f)(int, int, ...);
-}
 
 namespace zcoroutine {
 
@@ -50,10 +47,8 @@ bool FdCtx::init() {
             } else {
                 ::fcntl(fd_, F_SETFL, newf);
             }
-            sys_nonblock_ = true;
-        } else {
-            sys_nonblock_ = true;
         }
+        sys_nonblock_ = true;
     } else {
         sys_nonblock_ = false;
     }

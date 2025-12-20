@@ -24,9 +24,8 @@ public:
 
     /**
      * @brief 取消定时器
-     * @return 成功返回true，失败返回false
      */
-    bool cancel();
+    void cancel();
 
     /**
      * @brief 刷新定时器

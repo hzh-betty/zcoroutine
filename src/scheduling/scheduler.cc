@@ -92,15 +92,13 @@ void Scheduler::schedule(std::function<void()> func) {
         return;
     }
     
-    Task task(func);
+    // 从协程池获取协程执行任务
+    auto fiber = FiberPool::GetInstance()->acquire(std::move(func));
+    Task task(fiber);
     task_queue_->push(task);
     
-    ZCOROUTINE_LOG_DEBUG("Scheduler[{}] scheduled callback, queue_size={}", name_, task_queue_->size());
-}
-
-void Scheduler::set_fiber_pool(FiberPool::ptr pool) {
-    fiber_pool_ = std::move(pool);
-    ZCOROUTINE_LOG_INFO("Scheduler[{}] fiber pool configured", name_);
+    ZCOROUTINE_LOG_DEBUG("Scheduler[{}] scheduled fiber from pool, name={}, id={}, queue_size={}",
+                         name_, fiber->name(), fiber->id(), task_queue_->size());
 }
 
 Scheduler* Scheduler::get_this() {
@@ -150,13 +148,11 @@ void Scheduler::run() {
                                      name_, fiber->name(), fiber->id());
             }
             
-            // 如果协程终止且有协程池，归还到池中
+            // 如果协程终止，归还到池中
             if (fiber->state() == Fiber::State::kTerminated) {
                 ZCOROUTINE_LOG_DEBUG("Scheduler[{}] fiber terminated: name={}, id={}",
                                      name_, fiber->name(), fiber->id());
-                if (fiber_pool_) {
-                    fiber_pool_->release(fiber);
-                }
+                FiberPool::GetInstance()->release(fiber);
             }
         } else if (task.callback) {
             // 执行回调函数

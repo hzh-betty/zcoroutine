@@ -76,7 +76,6 @@ public:
      */
     static ptr GetInstance();
 
-private:
     FdManager();
     ~FdManager() = default;
 

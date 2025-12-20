@@ -24,6 +24,20 @@ Timer::ptr TimerManager::add_timer(uint64_t timeout, std::function<void()> callb
     return timer;
 }
 
+Timer::ptr TimerManager::add_condition_timer(uint64_t timeout, std::function<void()> callback,
+                                             std::weak_ptr<void> weak_cond, bool recurring) {
+    // 包装回调函数，添加条件检查
+    auto wrapper_callback = [weak_cond, callback]() {
+        // 检查条件是否仍然有效
+        if (weak_cond.lock()) {
+            callback();
+        }
+    };
+    
+    ZCOROUTINE_LOG_DEBUG("TimerManager::add_condition_timer: timeout={}ms, recurring={}", timeout, recurring);
+    return add_timer(timeout, wrapper_callback, recurring);
+}
+
 int TimerManager::get_next_timeout() const {
     std::lock_guard<std::mutex> lock(mutex_);
     

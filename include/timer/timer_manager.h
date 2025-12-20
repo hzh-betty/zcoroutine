@@ -27,6 +27,17 @@ public:
     Timer::ptr add_timer(uint64_t timeout, std::function<void()> callback, bool recurring = false);
 
     /**
+     * @brief 添加条件定时器
+     * @param timeout 超时时间（毫秒）
+     * @param callback 回调函数
+     * @param weak_cond 弱引用条件，当条件对象失效时定时器自动取消
+     * @param recurring 是否循环
+     * @return 定时器智能指针
+     */
+    Timer::ptr add_condition_timer(uint64_t timeout, std::function<void()> callback,
+                                   std::weak_ptr<void> weak_cond, bool recurring = false);
+
+    /**
      * @brief 获取下一个定时器的超时时间
      * @return 超时时间（毫秒），如果没有定时器返回-1
      */

@@ -1,5 +1,4 @@
 #include "runtime/fiber.h"
-#include "runtime/shared_stack_pool.h"
 #include "util/thread_context.h"
 #include "util/zcoroutine_logger.h"
 #include <cassert>
@@ -30,13 +29,9 @@ Fiber::Fiber()
 // 普通协程构造函数
 Fiber::Fiber(std::function<void()> func,
              size_t stack_size,
-             const std::string& name,
-             bool use_shared_stack,
-             SharedStackPool* stack_pool)
+             const std::string& name)
     : callback_(std::move(func))
     , stack_size_(stack_size)
-    , use_shared_stack_(use_shared_stack)
-    , stack_pool_(stack_pool)
     , context_(std::make_unique<Context>()) {
     
     // 分配全局唯一ID
@@ -49,38 +44,23 @@ Fiber::Fiber(std::function<void()> func,
         name_ = name + "_" + std::to_string(id_);
     }
     
-    ZCOROUTINE_LOG_DEBUG("Fiber creating: name={}, id={}, stack_size={}, use_shared_stack={}", 
-                         name_, id_, stack_size_, use_shared_stack_);
+    ZCOROUTINE_LOG_DEBUG("Fiber creating: name={}, id={}, stack_size={}", 
+                         name_, id_, stack_size_);
     
-    // 分配栈内存
-    if (use_shared_stack_) {
-        // 共享栈模式
-        if (!stack_pool_) {
-            ZCOROUTINE_LOG_FATAL("Fiber creation failed: shared stack mode requires stack_pool, name={}, id={}", 
-                                 name_, id_);
-            abort();
-        }
-        shared_stack_ = stack_pool_->allocate_stack();
-        stack_ptr_ = shared_stack_->stack_buffer;
-        ZCOROUTINE_LOG_DEBUG("Fiber using shared stack: name={}, id={}, buffer={}", 
-                             name_, id_, static_cast<void*>(stack_ptr_));
-    } else {
-        // 独立栈模式
-        stack_ptr_ = StackAllocator::allocate(stack_size_);
-        if (!stack_ptr_) {
-            ZCOROUTINE_LOG_FATAL("Fiber stack allocation failed: name={}, id={}, size={}", 
-                                 name_, id_, stack_size_);
-            abort();
-        }
-        ZCOROUTINE_LOG_DEBUG("Fiber using independent stack: name={}, id={}, ptr={}, size={}", 
-                             name_, id_, static_cast<void*>(stack_ptr_), stack_size_);
+    // 分配栈内存（独立栈模式）
+    stack_ptr_ = StackAllocator::allocate(stack_size_);
+    if (!stack_ptr_) {
+        ZCOROUTINE_LOG_FATAL("Fiber stack allocation failed: name={}, id={}, size={}", 
+                             name_, id_, stack_size_);
+        abort();
     }
+    ZCOROUTINE_LOG_DEBUG("Fiber using independent stack: name={}, id={}, ptr={}, size={}", 
+                         name_, id_, static_cast<void*>(stack_ptr_), stack_size_);
     
     // 创建上下文
     context_->make_context(stack_ptr_, stack_size_, Fiber::main_func);
     
-    ZCOROUTINE_LOG_INFO("Fiber created: name={}, id={}, shared_stack={}", 
-                        name_, id_, use_shared_stack_);
+    ZCOROUTINE_LOG_INFO("Fiber created: name={}, id={}", name_, id_);
 }
 
 Fiber::~Fiber() {
@@ -88,16 +68,10 @@ Fiber::~Fiber() {
                          name_, id_, static_cast<int>(state_));
     
     // 释放栈内存
-    if (stack_ptr_ && !use_shared_stack_) {
+    if (stack_ptr_) {
         StackAllocator::deallocate(stack_ptr_, stack_size_);
         stack_ptr_ = nullptr;
         ZCOROUTINE_LOG_DEBUG("Fiber stack deallocated: name={}, id={}", name_, id_);
-    }
-    
-    // 共享栈模式释放保存缓冲区
-    if (save_buffer_) {
-        save_buffer_.reset();
-        ZCOROUTINE_LOG_DEBUG("Fiber save buffer released: name={}, id={}", name_, id_);
     }
 }
 
@@ -121,13 +95,6 @@ void Fiber::resume(ptr caller) {
     ZCOROUTINE_LOG_DEBUG("Fiber resume: name={}, id={}, prev_state={}, caller={}", 
                          name_, id_, static_cast<int>(prev_state), 
                          caller ? caller->name() : "none");
-    
-    // 共享栈模式需要恢复栈数据
-    if (use_shared_stack_ && save_buffer_) {
-        memcpy(stack_sp_, save_buffer_.get(), save_size_);
-        ZCOROUTINE_LOG_DEBUG("Fiber stack restored: name={}, id={}, sp={}, size={}", 
-                             name_, id_, static_cast<void*>(stack_sp_), save_size_);
-    }
     
     // 切换上下文
     if (prev_fiber && prev_fiber->context_) {
@@ -156,27 +123,6 @@ void Fiber::yield() {
     cur_fiber->state_ = State::kSuspended;
     
     ZCOROUTINE_LOG_DEBUG("Fiber yield: name={}, id={}", cur_fiber->name_, cur_fiber->id_);
-    
-    // 共享栈模式需要保存栈数据
-    if (cur_fiber->use_shared_stack_ && cur_fiber->shared_stack_) {
-        // 计算栈使用量
-        char dummy;
-        char* cur_sp = &dummy;
-        cur_fiber->stack_sp_ = cur_sp;
-        cur_fiber->save_size_ = cur_fiber->shared_stack_->stack_bp - cur_sp;
-        
-        // 分配保存缓冲区
-        if (!cur_fiber->save_buffer_ || cur_fiber->save_size_ > cur_fiber->stack_size_) {
-            cur_fiber->save_buffer_ = std::make_unique<char[]>(cur_fiber->save_size_);
-        }
-        
-        // 拷贝栈数据
-        memcpy(cur_fiber->save_buffer_.get(), cur_sp, cur_fiber->save_size_);
-        
-        ZCOROUTINE_LOG_DEBUG("Fiber stack saved: name={}, id={}, sp={}, size={}", 
-                             cur_fiber->name_, cur_fiber->id_, 
-                             static_cast<void*>(cur_sp), cur_fiber->save_size_);
-    }
     
     // 切换回调用者或主协程
     auto caller = cur_fiber->caller_fiber_.lock();

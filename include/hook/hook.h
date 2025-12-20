@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <sys/uio.h>
 #include <ctime>
+#include <cstdint>
 
 namespace zcoroutine {
 
@@ -19,6 +20,11 @@ bool is_hook_enabled();
  * @param enable true表示启用，false表示禁用
  */
 void set_hook_enable(bool enable);
+
+/**
+ * @brief 初始化hook
+ */
+void hook_init();
 
 }  // namespace zcoroutine
 

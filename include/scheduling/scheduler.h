@@ -73,17 +73,6 @@ public:
     }
 
     /**
-     * @brief 设置协程池
-     * @param pool 协程池指针
-     */
-    void set_fiber_pool(FiberPool::ptr pool);
-
-    /**
-     * @brief 获取协程池
-     */
-    FiberPool::ptr get_fiber_pool() const { return fiber_pool_; }
-
-    /**
      * @brief 是否正在运行
      */
     bool is_running() const { return !stopping_.load(std::memory_order_relaxed); }
@@ -109,7 +98,6 @@ private:
     int thread_count_;                              // 线程数量
     std::vector<std::unique_ptr<std::thread>> threads_;  // 线程池
     std::unique_ptr<TaskQueue> task_queue_;         // 任务队列
-    FiberPool::ptr fiber_pool_;                     // 协程池
     
     std::atomic<bool> stopping_;                    // 停止标志
     std::atomic<int> active_thread_count_;          // 活跃线程数

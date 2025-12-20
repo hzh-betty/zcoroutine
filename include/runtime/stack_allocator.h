@@ -1,5 +1,6 @@
 #ifndef ZCOROUTINE_STACK_ALLOCATOR_H_
 #define ZCOROUTINE_STACK_ALLOCATOR_H_
+#include <cstddef>
 
 namespace zcoroutine {
 
@@ -35,7 +36,6 @@ public:
      */
     static size_t get_default_size() { return kDefaultStackSize; }
 
-private:
     StackAllocator() = delete;
     ~StackAllocator() = delete;
 };

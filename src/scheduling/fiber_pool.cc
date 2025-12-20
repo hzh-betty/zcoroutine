@@ -4,6 +4,11 @@
 
 namespace zcoroutine {
 
+FiberPool::ptr FiberPool::GetInstance(size_t min_size, size_t max_size) {
+    static ptr instance(new FiberPool(min_size, max_size));
+    return instance;
+}
+
 FiberPool::FiberPool(size_t min_size, size_t max_size)
     : min_size_(min_size)
     , max_size_(max_size)
@@ -31,6 +36,10 @@ Fiber::ptr FiberPool::acquire(std::function<void()> func) {
         // 从池中取出空闲协程
         auto fiber = idle_fibers_.front();
         idle_fibers_.pop_front();
+        
+        // 重置协程，设置新的执行函数
+        fiber->reset(std::move(func));
+        
         size_t reused = total_reused_.fetch_add(1, std::memory_order_relaxed) + 1;
         
         ZCOROUTINE_LOG_DEBUG("FiberPool::acquire from pool: fiber_id={}, idle_remaining={}, total_reused={}",
@@ -43,7 +52,7 @@ Fiber::ptr FiberPool::acquire(std::function<void()> func) {
     ZCOROUTINE_LOG_DEBUG("FiberPool::acquire pool empty, need create new fiber: total_created={}",
                          created);
 
-    auto new_fiber = std::make_shared<Fiber>(func);
+    auto new_fiber = std::make_shared<Fiber>(std::move(func));
     return new_fiber;
 }
 

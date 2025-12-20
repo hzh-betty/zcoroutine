@@ -175,7 +175,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Benchmark: wrk -t4 -c100 -d30s http://localhost:" << port << "/" << std::endl;
     
     // 创建IoScheduler（使用指定数量的工作线程）
-    auto io_scheduler = IoScheduler::CreateInstance(thread_num, true, "HttpServer");
+    auto io_scheduler = std::make_shared<IoScheduler>(thread_num, "HttpServer");
     g_io_scheduler = io_scheduler;
     
     // 启用Hook（使系统调用异步化）

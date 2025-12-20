@@ -23,10 +23,6 @@ class IoScheduler : public NonCopyable {
 public:
     using ptr = std::shared_ptr<IoScheduler>;
 
-
-    explicit IoScheduler(int thread_count = 1, bool use_caller = true,
-                        const std::string& name = "IoScheduler");
-
     IoScheduler(int thread_count, const std::string &name);
     /**
      * @brief 析构函数
@@ -79,6 +75,13 @@ public:
      * @return 成功返回0，失败返回-1
      */
     int cancel_event(int fd, FdContext::Event event) const;
+
+    /**
+     * @brief 取消文件描述符上的所有事件
+     * @param fd 文件描述符
+     * @return 成功返回0，失败返回-1
+     */
+    int cancel_all(int fd) const;
     
     /**
      * @brief 添加定时器
@@ -88,6 +91,17 @@ public:
      * @return 定时器指针
      */
     Timer::ptr add_timer(uint64_t timeout, std::function<void()> callback, bool recurring = false);
+
+    /**
+     * @brief 添加条件定时器
+     * @param timeout 超时时间（毫秒）
+     * @param callback 定时器回调
+     * @param weak_cond 弱引用条件
+     * @param recurring 是否循环
+     * @return 定时器指针
+     */
+    Timer::ptr add_condition_timer(uint64_t timeout, std::function<void()> callback,
+                                   std::weak_ptr<void> weak_cond, bool recurring = false);
     
     /**
      * @brief 获取Scheduler
@@ -103,6 +117,12 @@ public:
      * @brief 获取单例
      */
     static ptr GetInstance();
+
+    /**
+     * @brief 获取当前线程的IoScheduler
+     * @return 当前线程的IoScheduler指针
+     */
+    static IoScheduler* get_this();
 
 private:
     /**

@@ -30,11 +30,12 @@ protected:
 
 // 测试：IoScheduler基本功能
 TEST_F(IoSchedulerIntegrationTest, BasicIoScheduler) {
-    auto io_scheduler = IoScheduler::CreateInstance(2, true, "TestIoScheduler");
+    auto io_scheduler = std::make_shared<IoScheduler>(2, "TestIoScheduler");
     EXPECT_NE(io_scheduler, nullptr);
     
     std::atomic<int> count{0};
     
+    io_scheduler->start();
     io_scheduler->schedule([&count]() {
         count++;
     });
@@ -47,7 +48,8 @@ TEST_F(IoSchedulerIntegrationTest, BasicIoScheduler) {
 
 // 测试：定时器功能
 TEST_F(IoSchedulerIntegrationTest, TimerFunction) {
-    auto io_scheduler = IoScheduler::CreateInstance(2, true, "TimerTest");
+    auto io_scheduler = std::make_shared<IoScheduler>(2, "TimerTest");
+    io_scheduler->start();
     
     std::atomic<int> timer_count{0};
     
@@ -73,7 +75,8 @@ TEST_F(IoSchedulerIntegrationTest, TimerFunction) {
 
 // 测试：Pipe IO事件
 TEST_F(IoSchedulerIntegrationTest, PipeIoEvent) {
-    auto io_scheduler = IoScheduler::CreateInstance(2, true, "PipeTest");
+    auto io_scheduler = std::make_shared<IoScheduler>(2, "PipeTest");
+    io_scheduler->start();
     
     int pipe_fds[2];
     ASSERT_EQ(pipe(pipe_fds), 0);
@@ -115,7 +118,8 @@ TEST_F(IoSchedulerIntegrationTest, PipeIoEvent) {
 
 // 测试：协程与IO事件结合
 TEST_F(IoSchedulerIntegrationTest, FiberWithIoEvent) {
-    auto io_scheduler = IoScheduler::CreateInstance(2, true, "FiberIoTest");
+    auto io_scheduler = std::make_shared<IoScheduler>(2, "FiberIoTest");
+    io_scheduler->start();
     
     int pipe_fds[2];
     ASSERT_EQ(pipe(pipe_fds), 0);
@@ -154,7 +158,8 @@ TEST_F(IoSchedulerIntegrationTest, FiberWithIoEvent) {
 
 // 测试：多个协程并发IO
 TEST_F(IoSchedulerIntegrationTest, MultipleCoroutinesIo) {
-    auto io_scheduler = IoScheduler::CreateInstance(4, true, "MultiIoTest");
+    auto io_scheduler = std::make_shared<IoScheduler>(4, "MultiIoTest");
+    io_scheduler->start();
     
     const int fiber_count = 10;
     std::atomic<int> completed{0};
@@ -175,7 +180,8 @@ TEST_F(IoSchedulerIntegrationTest, MultipleCoroutinesIo) {
 }
 
 TEST_F(IoSchedulerIntegrationTest, HookSystemCall) {
-    auto io_scheduler = IoScheduler::CreateInstance(2, true, "HookTest");
+    auto io_scheduler = std::make_shared<IoScheduler>(2, "HookTest");
+    io_scheduler->start();
 
     std::atomic<bool> sleep_done{false};
     std::atomic<bool> early_ran{false};

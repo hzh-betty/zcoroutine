@@ -21,17 +21,19 @@ struct PoolStatistics {
 /**
  * @brief 协程池类
  * 管理协程对象池，支持协程复用，减少创建销毁开销
+ * 单例模式，全局唯一实例
  */
 class FiberPool {
 public:
     using ptr = std::shared_ptr<FiberPool>;
 
     /**
-     * @brief 构造函数
-     * @param min_size 最小容量
-     * @param max_size 最大容量
+     * @brief 获取单例实例
+     * @param min_size 最小容量（仅首次创建时有效）
+     * @param max_size 最大容量（仅首次创建时有效）
+     * @return 协程池指针
      */
-    explicit FiberPool(size_t min_size = 10, size_t max_size = 1000);
+    static ptr GetInstance(size_t min_size = 10, size_t max_size = 1000);
 
     /**
      * @brief 析构函数
@@ -78,6 +80,13 @@ public:
     PoolStatistics get_statistics() const;
 
 private:
+    /**
+     * @brief 构造函数（私有，单例模式）
+     * @param min_size 最小容量
+     * @param max_size 最大容量
+     */
+    FiberPool(size_t min_size, size_t max_size);
+
     size_t min_size_;                       // 最小容量
     size_t max_size_;                       // 最大容量
     std::deque<Fiber::ptr> idle_fibers_;    // 空闲协程队列
