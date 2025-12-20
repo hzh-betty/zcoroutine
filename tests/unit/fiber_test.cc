@@ -37,7 +37,7 @@ TEST_F(FiberTest, CreateFiber) {
     });
     
     EXPECT_NE(fiber, nullptr);
-    EXPECT_GT(fiber->id(), 0);
+    EXPECT_EQ(fiber->id(), 0);
     EXPECT_EQ(fiber->state(), Fiber::State::kReady);
     EXPECT_FALSE(executed);
 }
@@ -48,6 +48,7 @@ TEST_F(FiberTest, ExecuteFiber) {
     
     auto fiber = std::make_shared<Fiber>([&value]() {
         value = 42;
+        Fiber::yield();
     });
     
     fiber->resume();

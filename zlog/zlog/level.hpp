@@ -18,7 +18,7 @@ namespace zlog
         /**
          * @brief 日志级别枚举
          */
-        enum class value
+        enum class value:int
         {
             UNKNOWN = 0,
             DEBUG,
@@ -56,4 +56,27 @@ namespace zlog
             }
         }
     };
+    inline bool operator<(LogLevel::value lhs,
+                          LogLevel::value rhs)
+    {
+        return static_cast<int>(lhs) < static_cast<int>(rhs);
+    }
+
+    inline bool operator<=(LogLevel::value lhs,
+                           LogLevel::value rhs)
+    {
+        return static_cast<int>(lhs) <= static_cast<int>(rhs);
+    }
+
+    inline bool operator>(LogLevel::value lhs,
+                          LogLevel::value rhs)
+    {
+        return static_cast<int>(lhs) > static_cast<int>(rhs);
+    }
+
+    inline bool operator>=(LogLevel::value lhs,
+                           LogLevel::value rhs)
+    {
+        return static_cast<int>(lhs) >= static_cast<int>(rhs);
+    }
 } // namespace zlog

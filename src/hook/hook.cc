@@ -51,8 +51,6 @@ void hook_init() {
     XX(setsockopt)
     XX(getsockopt)
 #undef XX
-
-    ZCOROUTINE_LOG_DEBUG("Hook initialized");
 }
 
 // 静态初始化器，确保hook在main之前初始化
