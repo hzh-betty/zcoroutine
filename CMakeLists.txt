@@ -86,8 +86,6 @@ if(TEST_UNIT_SRCS)
         get_filename_component(test_name ${test_source} NAME_WE)
         # 创建可执行文件
         add_executable(${test_name} ${test_source})
-        # 设置包含目录
-        target_include_directories(${test_name} PRIVATE ${PROJECT_SOURCE_DIR}/include)
         # 链接库
         target_link_libraries(${test_name} PRIVATE
                 zcoroutine_shared
@@ -107,8 +105,6 @@ if(TEST_INTEGRATION_SRCS)
         get_filename_component(test_name ${test_source} NAME_WE)
         # 创建可执行文件
         add_executable(${test_name} ${test_source})
-        # 设置包含目录
-        target_include_directories(${test_name} PRIVATE ${PROJECT_SOURCE_DIR}/include)
         # 链接库
         target_link_libraries(${test_name} PRIVATE
                 zcoroutine_shared
@@ -124,7 +120,6 @@ endif()
 # Benchmark 可执行文件
 if(EXISTS ${PROJECT_SOURCE_DIR}/tests/benchmark/http_server.cc)
     add_executable(http_server_benchmark ${PROJECT_SOURCE_DIR}/tests/benchmark/http_server.cc)
-    target_include_directories(http_server_benchmark PRIVATE ${PROJECT_SOURCE_DIR}/include)
     target_link_libraries(http_server_benchmark PRIVATE
             zcoroutine_shared
             pthread
