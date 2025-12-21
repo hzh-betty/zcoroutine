@@ -66,7 +66,7 @@ public:
      * @param event 事件类型
      * @return 成功返回0，失败返回-1
      */
-    int del_event(int fd, FdContext::Event event) const;
+    int del_event(int fd, FdContext::Event event);
     
     /**
      * @brief 取消IO事件
@@ -74,14 +74,14 @@ public:
      * @param event 事件类型
      * @return 成功返回0，失败返回-1
      */
-    int cancel_event(int fd, FdContext::Event event) const;
+    int cancel_event(int fd, FdContext::Event event);
 
     /**
      * @brief 取消文件描述符上的所有事件
      * @param fd 文件描述符
      * @return 成功返回0，失败返回-1
      */
-    int cancel_all(int fd) const;
+    int cancel_all(int fd);
     
     /**
      * @brief 添加定时器

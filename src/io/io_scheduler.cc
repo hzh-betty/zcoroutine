@@ -8,11 +8,10 @@
 
 namespace zcoroutine {
     FdContext::ptr IoScheduler::get_fd_context(int fd, bool auto_create) {
+        // 边界检查 
         if (fd < 0) {
             return nullptr;
         }
-
-
         if (static_cast<size_t>(fd) < fd_contexts_.size()) {
             if (fd_contexts_[fd] || !auto_create) {
                 return fd_contexts_[fd];
@@ -22,7 +21,7 @@ namespace zcoroutine {
             return nullptr;
         }
 
-
+        // 扩展fd_contexts_大小
         if (static_cast<size_t>(fd) >= fd_contexts_.size()) {
             size_t old = fd_contexts_.size();
             size_t want = std::max(static_cast<size_t>(fd + 1), old + old / 2);
@@ -32,6 +31,7 @@ namespace zcoroutine {
             fd_contexts_.resize(want);
         }
 
+        // 创建新的FdContext
         if (!fd_contexts_[fd] && auto_create) {
             fd_contexts_[fd] = std::make_shared<FdContext>(fd);
         }
@@ -47,7 +47,8 @@ namespace zcoroutine {
         scheduler_ = std::make_shared<Scheduler>(thread_count, name);
 
         // 创建Epoll
-        epoll_poller_ = std::make_shared<EpollPoller>(256);
+        constexpr size_t kDefaultMaxEvents = 256;
+        epoll_poller_ = std::make_shared<EpollPoller>(kDefaultMaxEvents);
 
         // 创建定时器管理器
         timer_manager_ = std::make_shared<TimerManager>();
@@ -193,11 +194,10 @@ namespace zcoroutine {
         return 0;
     }
 
-    int IoScheduler::del_event(int fd, FdContext::Event event) const {
+    int IoScheduler::del_event(int fd, FdContext::Event event)  {
         ZCOROUTINE_LOG_DEBUG("IoScheduler::del_event fd={}, event={}", fd, event);
 
-        // const 方法里需要可变锁，所以 mutex_ 是 mutable
-        auto self = const_cast<IoScheduler *>(this);
+        auto self = this;
         FdContext::ptr fd_ctx = self->get_fd_context(fd, false);
         if (!fd_ctx) {
             ZCOROUTINE_LOG_DEBUG("IoScheduler::del_event FdContext not found, fd={}", fd);
@@ -227,10 +227,10 @@ namespace zcoroutine {
         return 0;
     }
 
-    int IoScheduler::cancel_event(int fd, FdContext::Event event) const {
+    int IoScheduler::cancel_event(int fd, FdContext::Event event)  {
         ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_event fd={}, event={}", fd, event);
 
-        auto self = const_cast<IoScheduler *>(this);
+        auto self = this;
         FdContext::ptr fd_ctx = self->get_fd_context(fd, false);
         if (!fd_ctx) {
             ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_event FdContext not found, fd={}", fd);
@@ -260,10 +260,10 @@ namespace zcoroutine {
         return 0;
     }
 
-    int IoScheduler::cancel_all(int fd) const {
+    int IoScheduler::cancel_all(int fd)  {
         ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_all fd={}", fd);
 
-        auto self = const_cast<IoScheduler *>(this);
+        auto self = this;
         FdContext::ptr fd_ctx = self->get_fd_context(fd, false);
         if (!fd_ctx) {
             ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_all FdContext not found, fd={}", fd);

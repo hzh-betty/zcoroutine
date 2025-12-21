@@ -25,7 +25,7 @@ protected:
 };
 
 // ============================================================================
-// 基础功能测试（独立栈）
+// 基础功能测试
 // ============================================================================
 
 // 测试1：协程创建
@@ -49,11 +49,14 @@ TEST_F(FiberTest, ExecuteFiber) {
     auto fiber = std::make_shared<Fiber>([&value]() {
         value = 42;
         Fiber::yield();
+        value = 100;
     });
     
+    EXPECT_EQ(value, 0);
     fiber->resume();
-    
     EXPECT_EQ(value, 42);
+    fiber->resume();
+    EXPECT_EQ(value, 100);
     EXPECT_EQ(fiber->state(), Fiber::State::kTerminated);
 }
 

@@ -81,16 +81,6 @@ public:
     State state() const { return state_; }
 
     /**
-     * @brief 检查并重抛协程中的异常（如果有）
-     * 应在协程执行完毕后调用，以传播异常给调用者
-     */
-    void rethrow_if_exception() {
-        if (exception_) {
-            std::rethrow_exception(exception_);
-        }
-    }
-
-    /**
      * @brief 协程主函数（静态）
      * 在协程上下文中执行
      */
@@ -109,7 +99,7 @@ public:
     static void set_this(Fiber* fiber);
 
 private:
-    // 友元声明：Scheduler需要访问私有构造函数创建main_fiber
+    // Scheduler需要访问私有构造函数创建main_fiber
     friend class Scheduler;
 
     /**
@@ -117,6 +107,11 @@ private:
      * 用于创建线程的主协程
      */
     Fiber();
+
+    /**
+     * @brief 确定切换目标协程(切换到scheduler_fiber或main_fiber)
+     */
+    void confirm_switch_target();
 
     std::string name_;                      // 协程名称
     uint64_t id_ = 0;                       // 协程唯一ID
