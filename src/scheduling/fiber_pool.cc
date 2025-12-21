@@ -102,6 +102,8 @@ void FiberPool::resize(size_t size) {
 }
 
 void FiberPool::clear() {
+    total_created_.store(0, std::memory_order_relaxed);
+    total_reused_.store(0, std::memory_order_relaxed);
     std::lock_guard<std::mutex> lock(mutex_);
     size_t cleared_count = idle_fibers_.size();
     idle_fibers_.clear();

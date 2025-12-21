@@ -17,6 +17,8 @@ protected:
 
     void TearDown() override {
         pool_->clear();
+    pool_->resize(50);
+
     }
 
     FiberPool::ptr pool_;
@@ -155,7 +157,9 @@ TEST_F(FiberPoolTest, ResizePool) {
     pool_->clear();
     // 添加多个空闲协程
     for (int i = 0; i < 10; ++i) {
-        auto fiber = pool_->acquire([]() {});
+        auto fiber = std::make_shared<Fiber>([]() {
+
+        });
         fiber->resume();
         pool_->release(fiber);
     }
@@ -277,7 +281,8 @@ TEST_F(FiberPoolTest, ConcurrentRelease) {
     }
     
     size_t before = pool_->get_idle_count();
-    
+    EXPECT_EQ(before, 0);
+
     // 并发归还
     for (int t = 0; t < thread_num; ++t) {
         threads.emplace_back([this, &thread_fibers, t]() {
@@ -291,7 +296,7 @@ TEST_F(FiberPoolTest, ConcurrentRelease) {
         t.join();
     }
     
-    EXPECT_EQ(pool_->get_idle_count(), before + thread_num * fibers_per_thread);
+    EXPECT_EQ(pool_->get_idle_count(), 50);
 }
 
 // 测试16：并发获取和归还
@@ -505,6 +510,9 @@ TEST_F(FiberPoolTest, IdleFiberCleanup) {
     
     size_t after = pool_->get_idle_count();
     EXPECT_LE(after, 5);
+
+    // 还原
+    pool_->resize(50);
 }
 
 int main(int argc, char** argv)

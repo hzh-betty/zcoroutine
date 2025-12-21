@@ -40,7 +40,7 @@ void Timer::refresh() {
 void Timer::reset(uint64_t timeout) {
     uint64_t old_interval = interval_;
     interval_ = timeout;
-    next_time_ = get_current_ms() + timeout;
+    next_time_ = next_time_ - old_interval + timeout;
     ZCOROUTINE_LOG_DEBUG("Timer reset: old_interval={}, new_interval={}, next_time={}", 
                          old_interval, interval_, next_time_);
 }

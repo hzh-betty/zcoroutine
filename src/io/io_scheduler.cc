@@ -139,11 +139,6 @@ namespace zcoroutine {
         wake_up(); // 唤醒IO线程
     }
 
-    void IoScheduler::schedule(std::function<void()> func) {
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::schedule callback function");
-        scheduler_->schedule(func);
-        wake_up(); // 唤醒IO线程
-    }
 
     int IoScheduler::add_event(int fd, FdContext::Event event, std::function<void()> callback) {
         ZCOROUTINE_LOG_DEBUG("IoScheduler::add_event fd={}, event={}, has_callback={}", fd, event, callback != nullptr);
@@ -365,7 +360,7 @@ namespace zcoroutine {
                 ZCOROUTINE_LOG_DEBUG("IoScheduler::io_thread_func processing {} expired timers",
                                      expired_cbs.size());
             }
-            for (auto &cb: expired_cbs) {
+            for (const auto &cb: expired_cbs) {
                 schedule(cb);
             }
         }

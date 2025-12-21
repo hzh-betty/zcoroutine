@@ -63,7 +63,7 @@ int FdContext::del_event(Event event) {
 }
 
 int FdContext::cancel_event(Event event) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::mutex> lock(mutex_);
     
     // 检查事件是否存在
     if (!(events_ & event)) {
@@ -78,7 +78,9 @@ int FdContext::cancel_event(Event event) {
     // 触发回调或唤醒协程
     if (ctx.callback) {
         ZCOROUTINE_LOG_DEBUG("FdContext::cancel_event triggering callback: fd={}, event={}", fd_, event);
-        ctx.callback();
+        lock.unlock();
+        ctx.callback(); // 释放锁后执行回调，避免死锁
+        lock.lock();
     } else if (ctx.fiber) {
         ZCOROUTINE_LOG_DEBUG("FdContext::cancel_event scheduling fiber: fd={}, event={}, fiber_id={}", 
                              fd_, event, ctx.fiber->id());
@@ -107,7 +109,7 @@ int FdContext::cancel_event(Event event) {
 }
 
 void FdContext::cancel_all() {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::mutex> lock(mutex_);
     
     if (events_ == kNone) {
         ZCOROUTINE_LOG_DEBUG("FdContext::cancel_all no events to cancel: fd={}", fd_);
@@ -123,7 +125,9 @@ void FdContext::cancel_all() {
         EventContext& ctx = read_ctx_;
         if (ctx.callback) {
             ZCOROUTINE_LOG_DEBUG("FdContext::cancel_all triggering READ callback: fd={}", fd_);
-            ctx.callback();
+            lock.unlock();
+            ctx.callback(); // 释放锁后执行回调，避免死锁
+            lock.lock();
             read_triggered = 1;
         } else if (ctx.fiber) {
             ZCOROUTINE_LOG_DEBUG("FdContext::cancel_all scheduling READ fiber: fd={}, fiber_id={}", 
@@ -144,7 +148,9 @@ void FdContext::cancel_all() {
         EventContext& ctx = write_ctx_;
         if (ctx.callback) {
             ZCOROUTINE_LOG_DEBUG("FdContext::cancel_all triggering WRITE callback: fd={}", fd_);
+            lock.unlock();
             ctx.callback();
+            lock.lock();
             write_triggered = 1;
         } else if (ctx.fiber) {
             ZCOROUTINE_LOG_DEBUG("FdContext::cancel_all scheduling WRITE fiber: fd={}, fiber_id={}", 
@@ -167,24 +173,26 @@ void FdContext::cancel_all() {
 }
 
 void FdContext::trigger_event(Event event) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    
+    std::unique_lock<std::mutex> lock(mutex_);
+
     // 检查事件是否存在
     if (!(events_ & event)) {
-        ZCOROUTINE_LOG_DEBUG("FdContext::trigger_event event not registered: fd={}, event={}, current_events={}", 
+        ZCOROUTINE_LOG_DEBUG("FdContext::trigger_event event not registered: fd={}, event={}, current_events={}",
                              fd_, event, events_);
         return;
     }
-    
+
     // 获取事件上下文
     EventContext& ctx = get_event_context(event);
-    
+
     // 触发回调或唤醒协程
     if (ctx.callback) {
         ZCOROUTINE_LOG_DEBUG("FdContext::trigger_event executing callback: fd={}, event={}", fd_, event);
-        ctx.callback();
+        lock.unlock();
+        ctx.callback(); // 释放锁后执行回调，避免死锁
+        lock.lock();
     } else if (ctx.fiber) {
-        ZCOROUTINE_LOG_DEBUG("FdContext::trigger_event scheduling fiber: fd={}, event={}, fiber_id={}", 
+        ZCOROUTINE_LOG_DEBUG("FdContext::trigger_event scheduling fiber: fd={}, event={}, fiber_id={}",
                              fd_, event, ctx.fiber->id());
         Scheduler* scheduler = Scheduler::get_this();
         if (scheduler) {
@@ -195,13 +203,13 @@ void FdContext::trigger_event(Event event) {
     } else {
         ZCOROUTINE_LOG_WARN("FdContext::trigger_event no callback or fiber: fd={}, event={}", fd_, event);
     }
-    
+
     // 重置事件上下文（事件被触发后自动删除）
     int old_events = events_;
     events_ = events_ & ~event;
     reset_event_context(ctx);
-    
-    ZCOROUTINE_LOG_DEBUG("FdContext::trigger_event complete: fd={}, event={}, old_events={}, new_events={}", 
+
+    ZCOROUTINE_LOG_DEBUG("FdContext::trigger_event complete: fd={}, event={}, old_events={}, new_events={}",
                          fd_, event, old_events, events_);
 }
 

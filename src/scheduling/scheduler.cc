@@ -42,7 +42,8 @@ namespace zcoroutine
             
             ZCOROUTINE_LOG_DEBUG("Scheduler[{}] worker thread {} started", name_, i);
             this->run();
-            ZCOROUTINE_LOG_DEBUG("Scheduler[{}] worker thread {} exited", name_, i); });
+            ZCOROUTINE_LOG_DEBUG("Scheduler[{}] worker thread {} exited", name_, i);
+                                                        });
             threads_.push_back(std::move(thread));
         }
 
@@ -195,8 +196,15 @@ namespace zcoroutine
                                          name_, fiber->name(), fiber->id());
                 }
 
-                // 如果协程终止，先检查是否有异常，然后归还到池中
-                if (fiber->state() == Fiber::State::kTerminated)
+                // 如果协程仍然可运行，重新调度
+                if (fiber->state() == Fiber::State::kReady)
+                {
+                    ZCOROUTINE_LOG_DEBUG("Scheduler[{}] fiber yielded, rescheduling: name={}, id={}",
+                                         name_, fiber->name(), fiber->id());
+                    schedule(fiber);
+                }
+                // 如果协程终止，归还到池中
+                else if (fiber->state() == Fiber::State::kTerminated)
                 {
                     ZCOROUTINE_LOG_DEBUG("Scheduler[{}] fiber terminated: name={}, id={}",
                                          name_, fiber->name(), fiber->id());

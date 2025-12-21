@@ -5,7 +5,10 @@
 #include <mutex>
 #include <vector>
 #include <functional>
-#include "timer/timer.h"
+#include <memory>
+
+#include "timer.h"
+#include "sync/spinlock.h"
 
 namespace zcoroutine {
 
@@ -64,7 +67,7 @@ private:
     };
 
     std::set<Timer::ptr, TimerComparator> timers_;  // 定时器集合
-    mutable std::mutex mutex_;                       // 互斥锁
+    mutable Spinlock mutex_;                       // 自旋锁
 };
 
 } // namespace zcoroutine

@@ -3,9 +3,10 @@
 
 #include <functional>
 #include <memory>
+#include "sync/spinlock.h"
 
 namespace zcoroutine {
-
+    class TimerManager; // 支持重置
 /**
  * @brief 定时器类
  * 表示单个定时器，支持一次性和循环两种模式
@@ -61,6 +62,7 @@ private:
     bool recurring_;                    // 是否循环
     std::function<void()> callback_;    // 定时器回调
     bool cancelled_ = false;            // 是否已取消
+    TimerManager* timer_manager_; // 所属的定时器管理
 
     friend class TimerManager;
 };

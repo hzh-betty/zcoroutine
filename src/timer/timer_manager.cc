@@ -74,7 +74,8 @@ int TimerManager::get_next_timeout() const {
 std::vector<std::function<void()>> TimerManager::list_expired_callbacks() {
     std::vector<std::function<void()>> callbacks;
     uint64_t now = get_current_ms();
-    
+    ZCOROUTINE_LOG_DEBUG("TimerManager::list_expired_callbacks: checking for expired timers at time={}ms", now);
+
     std::lock_guard<std::mutex> lock(mutex_);
     
     size_t initial_count = timers_.size();
@@ -84,6 +85,8 @@ std::vector<std::function<void()>> TimerManager::list_expired_callbacks() {
     auto it = timers_.begin();
     while (it != timers_.end()) {
         if ((*it)->get_next_time() > now) {
+            ZCOROUTINE_LOG_DEBUG("TimerManager::list_expired_callbacks: "
+                                "timer expired at time={}ms",(*it)->get_next_time());
             break;
         }
         
