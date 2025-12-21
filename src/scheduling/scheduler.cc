@@ -93,23 +93,6 @@ namespace zcoroutine
                              name_, fiber->name(), fiber->id(), task_queue_->size());
     }
 
-    void Scheduler::schedule(std::function<void()> func)
-    {
-        if (!func)
-        {
-            ZCOROUTINE_LOG_WARN("Scheduler[{}]::schedule received null callback", name_);
-            return;
-        }
-
-        // 从协程池获取协程执行任务
-        auto fiber = FiberPool::GetInstance()->acquire(std::move(func));
-        Task task(fiber);
-        task_queue_->push(task);
-
-        ZCOROUTINE_LOG_DEBUG("Scheduler[{}] scheduled fiber from pool, name={}, id={}, queue_size={}",
-                             name_, fiber->name(), fiber->id(), task_queue_->size());
-    }
-
     Scheduler *Scheduler::get_this()
     {
         return ThreadContext::get_scheduler();

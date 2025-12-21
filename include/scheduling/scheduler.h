@@ -7,6 +7,8 @@
 #include <memory>
 #include <atomic>
 #include <functional>
+
+#include "util/zcoroutine_logger.h"
 #include "scheduling/task_queue.h"
 #include "scheduling/fiber_pool.h"
 #include "runtime/fiber.h"
@@ -57,19 +59,21 @@ public:
     void schedule(Fiber::ptr fiber);
 
     /**
-     * @brief 调度函数
-     * @param func 回调函数
-     */
-    void schedule(std::function<void()> func);
-
-    /**
      * @brief 模板方法：调度可调用对象
      * @tparam F 函数类型
      * @tparam Args 参数类型
      */
     template<class F, class... Args>
     void schedule(F&& f, Args&&... args) {
-        schedule(std::bind(std::forward<F>(f), std::forward<Args>(args)...));
+        auto func = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
+
+        // 从协程池获取协程执行任务
+        auto fiber = FiberPool::GetInstance()->acquire(std::move(func));
+        Task task(fiber);
+        task_queue_->push(task);
+
+        ZCOROUTINE_LOG_DEBUG("Scheduler[{}] scheduled fiber from pool, name={}, id={}, queue_size={}",
+                             name_, fiber->name(), fiber->id(), task_queue_->size());
     }
 
     /**
