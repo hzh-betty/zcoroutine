@@ -8,7 +8,6 @@
 #include <memory>
 
 #include "timer.h"
-#include "sync/spinlock.h"
 
 namespace zcoroutine {
 
@@ -18,7 +17,16 @@ namespace zcoroutine {
  */
 class TimerManager {
 public:
-     using ptr = std::shared_ptr<TimerManager>;
+    using ptr = std::shared_ptr<TimerManager>;
+    using OnTimerInsertedCallback = std::function<void()>;
+
+    TimerManager() = default;
+
+    /**
+     * @brief 析构函数
+     * 清理所有定时器
+     */
+    ~TimerManager();
 
     /**
      * @brief 添加定时器
@@ -44,7 +52,7 @@ public:
      * @brief 获取下一个定时器的超时时间
      * @return 超时时间（毫秒），如果没有定时器返回-1
      */
-    int get_next_timeout() const;
+    int get_next_timeout();
 
     /**
      * @brief 获取所有到期的定时器回调
@@ -52,13 +60,38 @@ public:
      */
     std::vector<std::function<void()>> list_expired_callbacks();
 
+    /**
+     * @brief 是否有定时器
+     */
+    bool has_timer() const;
+
+    /**
+     * @brief 设置定时器插入到最前面时的通知回调
+     * @param cb 回调函数，当有新定时器插入到队首时会被调用
+     */
+    void set_on_timer_inserted_at_front(OnTimerInsertedCallback cb) {
+        on_timer_inserted_callback_ = std::move(cb);
+    }
+
+private:
+    /**
+     * @brief 插入定时器到集合中
+     */
+    void insert_timer(Timer::ptr timer);
+
+    /**
+     * @brief 检测系统时钟回播
+     * @return 如果检测到回播返回true
+     */
+    bool detect_clock_rollback();
+
 private:
     // 定时器比较器（按next_time_排序）
     struct TimerComparator {
         bool operator()(const Timer::ptr& lhs, const Timer::ptr& rhs) const {
-            if (!lhs || !rhs) {
-                return lhs < rhs;
-            }
+            if (!lhs && !rhs) return false;
+            if (!lhs) return true;
+            if (!rhs) return false;
             if (lhs->next_time_ != rhs->next_time_) {
                 return lhs->next_time_ < rhs->next_time_;
             }
@@ -66,8 +99,13 @@ private:
         }
     };
 
-    std::set<Timer::ptr, TimerComparator> timers_;  // 定时器集合
-    mutable Spinlock mutex_;                       // 自旋锁
+    std::set<Timer::ptr, TimerComparator> timers_;      // 定时器集合
+    mutable std::mutex mutex_;                           // 互斥锁
+    uint64_t last_time_ = 0;                             // 上次检测时间
+    bool tickled_ = false;                               // 是否已通知
+    OnTimerInsertedCallback on_timer_inserted_callback_; // 定时器插入队首时的回调
+
+    friend class Timer;
 };
 
 } // namespace zcoroutine

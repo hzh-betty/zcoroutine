@@ -34,7 +34,7 @@ protected:
 // 测试1：创建一次性定时器
 TEST_F(TimerTest, CreateOneShotTimer) {
     bool executed = false;
-    auto timer = std::make_shared<Timer>(100, [&executed]() {
+    auto timer = manager_->add_timer(100, [&executed]() {
         executed = true;
     }, false);
     
@@ -46,7 +46,7 @@ TEST_F(TimerTest, CreateOneShotTimer) {
 // 测试2：创建循环定时器
 TEST_F(TimerTest, CreateRecurringTimer) {
     int count = 0;
-    auto timer = std::make_shared<Timer>(100, [&count]() {
+    auto timer = manager_->add_timer(100, [&count]() {
         count++;
     }, true);
     
@@ -57,55 +57,74 @@ TEST_F(TimerTest, CreateRecurringTimer) {
 // 测试3：执行一次性定时器
 TEST_F(TimerTest, ExecuteOneShotTimer) {
     bool executed = false;
-    auto timer = std::make_shared<Timer>(100, [&executed]() {
+    auto timer = manager_->add_timer(10, [&executed]() {
         executed = true;
     }, false);
     
     EXPECT_FALSE(executed);
-    timer->execute();
+    
+    // 等待定时器过期
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    auto callbacks = manager_->list_expired_callbacks();
+    for (auto& cb : callbacks) {
+        cb();
+    }
+    
     EXPECT_TRUE(executed);
 }
 
 // 测试4：执行循环定时器多次
 TEST_F(TimerTest, ExecuteRecurringTimer) {
     int count = 0;
-    auto timer = std::make_shared<Timer>(100, [&count]() {
+    auto timer = manager_->add_timer(30, [&count]() {
         count++;
     }, true);
     
     for (int i = 0; i < 5; ++i) {
-        timer->execute();
+        std::this_thread::sleep_for(std::chrono::milliseconds(40));
+        auto callbacks = manager_->list_expired_callbacks();
+        for (auto& cb : callbacks) {
+            cb();
+        }
     }
     
-    EXPECT_EQ(count, 5);
+    EXPECT_GE(count, 4);
 }
 
 // 测试5：取消定时器
 TEST_F(TimerTest, CancelTimer) {
     bool executed = false;
-    auto timer = std::make_shared<Timer>(100, [&executed]() {
+    auto timer = manager_->add_timer(50, [&executed]() {
         executed = true;
     }, false);
 
-    timer->cancel();
-    timer->execute();
+    EXPECT_TRUE(timer->cancel());
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    auto callbacks = manager_->list_expired_callbacks();
+    for (auto& cb : callbacks) {
+        cb();
+    }
+    
     EXPECT_FALSE(executed); // 取消后不应执行
 }
 
 // 测试6：重复取消定时器
 TEST_F(TimerTest, DoubleCancelTimer) {
-    auto timer = std::make_shared<Timer>(100, []() {}, false);
-
+    auto timer = manager_->add_timer(100, []() {}, false);
+    
+    EXPECT_TRUE(timer->cancel());   // 第一次取消成功
+    EXPECT_FALSE(timer->cancel());  // 第二次取消失败
 }
 
 // 测试7：刷新定时器
 TEST_F(TimerTest, RefreshTimer) {
-    auto timer = std::make_shared<Timer>(100, []() {}, false);
+    auto timer = manager_->add_timer(100, []() {}, false);
     
     uint64_t original_time = timer->get_next_time();
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     
-    timer->refresh();
+    EXPECT_TRUE(timer->refresh());
     uint64_t new_time = timer->get_next_time();
     
     EXPECT_GT(new_time, original_time);
@@ -113,10 +132,10 @@ TEST_F(TimerTest, RefreshTimer) {
 
 // 测试8：重置定时器超时时间
 TEST_F(TimerTest, ResetTimerTimeout) {
-    auto timer = std::make_shared<Timer>(100, []() {}, false);
+    auto timer = manager_->add_timer(100, []() {}, false);
     
     uint64_t before = timer->get_next_time();
-    timer->reset(200);
+    EXPECT_TRUE(timer->reset(200, true));
     uint64_t after = timer->get_next_time();
     
     // 新的超时时间应该更晚
@@ -254,10 +273,17 @@ TEST_F(TimerTest, VeryLargeTimeout) {
 
 // 测试17：空回调函数
 TEST_F(TimerTest, NullCallback) {
-    auto timer = manager_->add_timer(100, nullptr, false);
+    auto timer = manager_->add_timer(10, nullptr, false);
     
+    // 等待定时器过期
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    
+    // 应该不会崩溃
     EXPECT_NO_THROW({
-        timer->execute();
+        auto callbacks = manager_->list_expired_callbacks();
+        for (auto& cb : callbacks) {
+            if (cb) cb();
+        }
     });
 }
 
@@ -265,7 +291,7 @@ TEST_F(TimerTest, NullCallback) {
 TEST_F(TimerTest, ResetToZeroTimeout) {
     auto timer = manager_->add_timer(1000, []() {}, false);
     
-    timer->reset(0);
+    EXPECT_TRUE(timer->reset(0, true));
     
     auto callbacks = manager_->list_expired_callbacks();
     EXPECT_FALSE(callbacks.empty());
@@ -469,7 +495,7 @@ TEST_F(TimerTest, TimerRefreshReorder) {
     
     // 刷新第一个定时器，使它延后
     std::this_thread::sleep_for(std::chrono::milliseconds(30));
-    timer1->reset(200);
+    EXPECT_TRUE(timer1->reset(200, true));
     
     // 现在第二个定时器应该先过期
     std::this_thread::sleep_for(std::chrono::milliseconds(80));

@@ -2,11 +2,12 @@
 #define ZCOROUTINE_TASK_QUEUE_H_
 
 #include <deque>
-#include <mutex>
-#include <condition_variable>
 #include <memory>
 #include <functional>
+#include <atomic>
 #include "runtime/fiber.h"
+#include "sync/spinlock.h"
+#include "sync/semaphore.h"
 
 namespace zcoroutine {
 
@@ -42,8 +43,8 @@ struct Task {
 
 /**
  * @brief 任务队列类
- * 线程安全的任务队列，支持阻塞和非阻塞取出
- * 使用std::mutex和std::condition_variable实现
+ * 使用SpinLock + Linux信号量实现的线程安全任务队列
+ * SpinLock保护队列操作，信号量实现阻塞等待
  */
 class TaskQueue {
 public:
@@ -64,13 +65,6 @@ public:
     bool pop(Task& task);
 
     /**
-     * @brief 非阻塞尝试取出任务
-     * @param task 输出参数，取出的任务
-     * @return true表示成功取出，false表示队列为空
-     */
-    bool try_pop(Task& task);
-
-    /**
      * @brief 获取队列大小
      * @return 队列中任务数量
      */
@@ -89,10 +83,10 @@ public:
     void stop();
 
 private:
-    mutable std::mutex mutex_;              // 保护队列的互斥锁
-    std::condition_variable cv_;            // 条件变量
+    mutable Spinlock spinlock_;             // 自旋锁保护队列
+    Semaphore semaphore_;                   // Linux 信号量
     std::deque<Task> tasks_;                // 任务队列
-    bool stopped_ = false;                  // 停止标志
+    std::atomic<bool> stopped_{false};      // 停止标志
 };
 
 } // namespace zcoroutine

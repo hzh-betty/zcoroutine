@@ -1,8 +1,8 @@
 #include <sys/time.h>
 
 #include "timer/timer.h"
+#include "timer/timer_manager.h"
 #include "util/zcoroutine_logger.h"
-
 
 namespace zcoroutine {
 
@@ -13,54 +13,90 @@ static uint64_t get_current_ms() {
     return tv.tv_sec * 1000 + tv.tv_usec / 1000;
 }
 
-Timer::Timer(uint64_t timeout, std::function<void()> callback, bool recurring)
-    : interval_(timeout)
+Timer::Timer(uint64_t interval_ms, Callback callback, bool recurring, TimerManager* manager)
+    : interval_ms_(interval_ms)
     , recurring_(recurring)
-    , callback_(std::move(callback)) {
-    
-    next_time_ = get_current_ms() + timeout;
-    
-    ZCOROUTINE_LOG_DEBUG("Timer created: next_time={}, interval={}, recurring={}", 
-                         next_time_, interval_, recurring_);
+    , callback_(std::move(callback))
+    , manager_(manager) {
+    next_time_ = get_current_ms() + interval_ms_;
+    ZCOROUTINE_LOG_DEBUG("Timer created: next_time={}, interval={}ms, recurring={}",
+                         next_time_, interval_ms_, recurring_);
 }
 
-void Timer::cancel() {
-    cancelled_ = true;
+Timer::Timer(uint64_t ms) {
+    next_time_ = get_current_ms() + ms;
+}
+
+bool Timer::cancel() {
+    ZCOROUTINE_LOG_DEBUG("Timer::cancel called");
+    std::lock_guard<std::mutex> lock(manager_->mutex_);
+    
+    if (!callback_) {
+        ZCOROUTINE_LOG_WARN("Timer::cancel failed, already canceled");
+        return false;
+    }
     callback_ = nullptr;
-    ZCOROUTINE_LOG_DEBUG("Timer cancelled: interval={}", interval_);
+    
+    if (!erase_timer()) return false;
+    
+    ZCOROUTINE_LOG_DEBUG("Timer::cancel succeeded");
+    return true;
 }
 
-void Timer::refresh() {
-    uint64_t old_next_time = next_time_;
-    next_time_ = get_current_ms() + interval_;
-    ZCOROUTINE_LOG_DEBUG("Timer refreshed: old_next_time={}, new_next_time={}, interval={}", 
-                         old_next_time, next_time_, interval_);
-}
-
-void Timer::reset(uint64_t timeout) {
-    uint64_t old_interval = interval_;
-    interval_ = timeout;
-    next_time_ = next_time_ - old_interval + timeout;
-    ZCOROUTINE_LOG_DEBUG("Timer reset: old_interval={}, new_interval={}, next_time={}", 
-                         old_interval, interval_, next_time_);
-}
-
-void Timer::execute() {
-    if (cancelled_ || !callback_) {
-        ZCOROUTINE_LOG_DEBUG("Timer skipped execution: cancelled={}, has_callback={}", 
-                             cancelled_, callback_ != nullptr);
-        return;
+bool Timer::refresh() {
+    ZCOROUTINE_LOG_DEBUG("Timer::refresh called");
+    std::lock_guard<std::mutex> lock(manager_->mutex_);
+    
+    if (!callback_) {
+        ZCOROUTINE_LOG_WARN("Timer::refresh failed, already canceled");
+        return false;
     }
     
-    ZCOROUTINE_LOG_DEBUG("Timer executing: next_time={}, interval={}, recurring={}", 
-                         next_time_, interval_, recurring_);
-    callback_();
+    // 找到当前定时器，删除
+    if (!erase_timer()) return false;
     
-    // 如果是循环定时器，重新计算下次触发时间
-    if (recurring_) {
-        next_time_ += interval_;
-        ZCOROUTINE_LOG_DEBUG("Timer rescheduled: new_next_time={}", next_time_);
+    // 重新计算下次触发时间
+    next_time_ = get_current_ms() + interval_ms_;
+    manager_->timers_.insert(shared_from_this());
+    
+    ZCOROUTINE_LOG_DEBUG("Timer::refresh succeeded, new next_time={}", next_time_);
+    return true;
+}
+
+bool Timer::reset(uint64_t ms, bool from_now) {
+    ZCOROUTINE_LOG_DEBUG("Timer::reset called, ms={}, from_now={}", ms, from_now);
+    std::lock_guard<std::mutex> lock(manager_->mutex_);
+    
+    if (!callback_) {
+        ZCOROUTINE_LOG_WARN("Timer::reset failed, already canceled");
+        return false;
     }
+    
+    // 找到当前定时器，删除
+    if (!erase_timer()) return false;
+    
+    // 重新计算下次触发时间
+    uint64_t now = get_current_ms();
+    if (from_now) {
+        next_time_ = now + ms;
+    } else {
+        next_time_ = next_time_ - interval_ms_ + ms;
+    }
+    interval_ms_ = ms;
+    manager_->timers_.insert(shared_from_this());
+    
+    ZCOROUTINE_LOG_DEBUG("Timer::reset succeeded, new next_time={}", next_time_);
+    return true;
+}
+
+bool Timer::erase_timer() {
+    auto iter = manager_->timers_.find(shared_from_this());
+    if (iter == manager_->timers_.end()) {
+        ZCOROUTINE_LOG_WARN("Timer::erase_timer failed, timer not found in manager");
+        return false;
+    }
+    manager_->timers_.erase(iter);
+    return true;
 }
 
 } // namespace zcoroutine

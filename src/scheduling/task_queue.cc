@@ -4,56 +4,54 @@
 namespace zcoroutine {
 
 void TaskQueue::push(const Task& task) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    tasks_.push_back(task);
-    cv_.notify_one();  // 唤醒一个等待的线程
+    {
+        SpinlockGuard lock(spinlock_);
+        tasks_.push_back(task);
+    }
+    semaphore_.notify();  // 唤醒一个等待的线程
 }
 
 bool TaskQueue::pop(Task& task) {
-    std::unique_lock<std::mutex> lock(mutex_);
-    
-    // 等待直到有任务或队列停止
-    cv_.wait(lock, [this]() {
-        return !tasks_.empty() || stopped_;
-    });
-    
-    if (stopped_ && tasks_.empty()) {
-        return false;
-    }
-    
-    task = std::move(tasks_.front());
-    tasks_.pop_front();
-    return true;
-}
+    while (true) {
+        // 等待信号量
+        semaphore_.wait();
 
-bool TaskQueue::try_pop(Task& task) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    if (tasks_.empty()) {
-        return false;
+        // 检查停止标志
+        if (stopped_.load(std::memory_order_relaxed)) {
+            // 即使停止，也要处理完剩余任务
+            SpinlockGuard lock(spinlock_);
+            if (tasks_.empty()) {
+                return false;
+            }
+            task = std::move(tasks_.front());
+            tasks_.pop_front();
+            return true;
+        }
+
+        SpinlockGuard lock(spinlock_);
+        if (!tasks_.empty()) {
+            task = std::move(tasks_.front());
+            tasks_.pop_front();
+            return true;
+        }
+        // 如果队列为空，继续等待（spurious wakeup）
     }
-    
-    task = std::move(tasks_.front());
-    tasks_.pop_front();
-    return true;
 }
 
 size_t TaskQueue::size() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    SpinlockGuard lock(spinlock_);
     return tasks_.size();
 }
 
 bool TaskQueue::empty() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    SpinlockGuard lock(spinlock_);
     return tasks_.empty();
 }
 
 void TaskQueue::stop() {
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        stopped_ = true;
-    }
-    cv_.notify_all();  // 唤醒所有等待的线程
+    stopped_.store(true, std::memory_order_relaxed);
+    // 唤醒所有等待的线程
+    semaphore_.notify_all(1024);
 }
 
 } // namespace zcoroutine

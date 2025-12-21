@@ -52,14 +52,23 @@ namespace zcoroutine
 
     void Scheduler::stop()
     {
-        if (stopping_.exchange(true, std::memory_order_relaxed))
+        if (stopping_)
         {
             ZCOROUTINE_LOG_DEBUG("Scheduler[{}] already stopping, skip", name_);
             return; // 已经在停止中
         }
 
-        ZCOROUTINE_LOG_INFO("Scheduler[{}] stopping, active_threads={}, pending_tasks={}",
-                            name_, active_thread_count_.load(), task_queue_->size());
+        ZCOROUTINE_LOG_INFO("Scheduler[{}] stopping, waiting for {} pending tasks...",
+                            name_, task_queue_->size());
+
+        // 等待所有任务处理完成
+        while (!task_queue_->empty()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+        ZCOROUTINE_LOG_INFO("Scheduler[{}] all tasks completed, stopping task queue", name_);
+
+        stopping_.store(true, std::memory_order_relaxed);
 
         // 停止任务队列，唤醒所有等待的线程
         task_queue_->stop();
@@ -197,7 +206,7 @@ namespace zcoroutine
                 }
 
                 // 如果协程仍然可运行，重新调度
-                if (fiber->state() == Fiber::State::kReady)
+                if (fiber->state() == Fiber::State::kSuspended)
                 {
                     ZCOROUTINE_LOG_DEBUG("Scheduler[{}] fiber yielded, rescheduling: name={}, id={}",
                                          name_, fiber->name(), fiber->id());

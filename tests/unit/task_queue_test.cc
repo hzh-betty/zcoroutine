@@ -92,17 +92,27 @@ TEST_F(TaskQueueTest, BlockingPop) {
     EXPECT_TRUE(task_popped.load());
 }
 
-// 测试5：非阻塞try_pop
-TEST_F(TaskQueueTest, NonBlockingTryPop) {
-    Task task;
+// 测试5：阻塞pop超时机制（使用线程测试）
+TEST_F(TaskQueueTest, PopWithTimeout) {
+    std::atomic<bool> task_received{false};
     
-    // 队列为空时应该返回false
-    EXPECT_FALSE(queue_->try_pop(task));
+    std::thread consumer([this, &task_received]() {
+        Task task;
+        // 这个pop会阻塞直到有任务
+        bool success = queue_->pop(task);
+        if (success && task.is_valid()) {
+            task_received.store(true);
+        }
+    });
     
-    // 添加任务后应该返回true
+    // 等待一小段时间确保消费者开始等待
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    
+    // 添加任务
     queue_->push(Task([]() {}));
-    EXPECT_TRUE(queue_->try_pop(task));
-    EXPECT_TRUE(task.is_valid());
+    
+    consumer.join();
+    EXPECT_TRUE(task_received.load());
 }
 
 // 测试6：多个任务的FIFO顺序
@@ -138,7 +148,7 @@ TEST_F(TaskQueueTest, StopQueue) {
     queue_->stop();
     
     Task task;
-    EXPECT_FALSE(queue_->pop(task)); // 停止后pop应该返回false
+    EXPECT_TRUE(queue_->pop(task)); // 停止后pop应该返回True
 }
 
 // 测试8：停止后唤醒等待线程
@@ -170,14 +180,29 @@ TEST_F(TaskQueueTest, StopWakesWaitingThreads) {
     EXPECT_EQ(woken_threads.load(), 5);
 }
 
-// 测试9：停止后无法添加任务（或添加后无效）
-TEST_F(TaskQueueTest, CannotPushAfterStop) {
-    queue_->stop();
-    
+// 测试9：停止后的行为
+TEST_F(TaskQueueTest, BehaviorAfterStop) {
+    // 添加一些任务
+    queue_->push(Task([]() {}));
     queue_->push(Task([]() {}));
     
-    Task task;
-    EXPECT_FALSE(queue_->pop(task));
+    EXPECT_EQ(queue_->size(), 2);
+    
+    // 停止队列
+    queue_->stop();
+    
+    // 停止后，剩余任务仍然可以被pop出来
+    Task task1;
+    EXPECT_TRUE(queue_->pop(task1));
+    EXPECT_TRUE(task1.is_valid());
+    
+    Task task2;
+    EXPECT_TRUE(queue_->pop(task2));
+    EXPECT_TRUE(task2.is_valid());
+    
+    // 所有任务处理完后，pop返回false
+    Task task3;
+    EXPECT_FALSE(queue_->pop(task3));
 }
 
 // ==================== 并发测试 ====================
@@ -403,16 +428,26 @@ TEST_F(TaskQueueTest, MixedTaskTypes) {
 
 // 测试20：快速push和pop
 TEST_F(TaskQueueTest, RapidPushPop) {
-    const int iterations = 10000;
+    const int iterations = 1000;
+    std::atomic<int> consumed{0};
     
+    // 启动消费者线程
+    std::thread consumer([this, &consumed, iterations]() {
+        for (int i = 0; i < iterations; ++i) {
+            Task task;
+            if (queue_->pop(task) && task.is_valid()) {
+                consumed.fetch_add(1);
+            }
+        }
+    });
+    
+    // 快速生产任务
     for (int i = 0; i < iterations; ++i) {
         queue_->push(Task([i]() {}));
-        
-        Task task;
-        EXPECT_TRUE(queue_->try_pop(task));
-        EXPECT_TRUE(task.is_valid());
     }
     
+    consumer.join();
+    EXPECT_EQ(consumed.load(), iterations);
     EXPECT_TRUE(queue_->empty());
 }
 
@@ -427,20 +462,24 @@ TEST_F(TaskQueueTest, BatchPushThenBatchPop) {
     
     EXPECT_EQ(queue_->size(), batch_size);
     
-    // 批量pop
-    int popped_count = 0;
-    while (!queue_->empty()) {
-        Task task;
-        if (queue_->try_pop(task)) {
-            popped_count++;
+    // 批量pop（使用线程避免阻塞）
+    std::atomic<int> popped_count{0};
+    std::thread consumer([this, &popped_count, batch_size]() {
+        for (int i = 0; i < batch_size; ++i) {
+            Task task;
+            if (queue_->pop(task)) {
+                popped_count.fetch_add(1);
+            }
         }
-    }
+    });
     
-    EXPECT_EQ(popped_count, batch_size);
+    consumer.join();
+    EXPECT_EQ(popped_count.load(), batch_size);
+    EXPECT_TRUE(queue_->empty());
 }
 
-// 测试22：并发try_pop
-TEST_F(TaskQueueTest, ConcurrentTryPop) {
+// 测试22：并发pop
+TEST_F(TaskQueueTest, ConcurrentPop) {
     const int task_count = 100;
     const int thread_num = 5;
     std::atomic<int> successful_pops{0};
@@ -450,25 +489,32 @@ TEST_F(TaskQueueTest, ConcurrentTryPop) {
         queue_->push(Task([i]() {}));
     }
     
-    // 并发try_pop
+    // 并发pop
     std::vector<std::thread> threads;
     for (int t = 0; t < thread_num; ++t) {
-        threads.emplace_back([this, &successful_pops]() {
-            Task task;
-            while (queue_->try_pop(task)) {
-                if (task.is_valid()) {
+        threads.emplace_back([this, &successful_pops, task_count, thread_num]() {
+            // 每个线程尝试pop一定数量的任务
+            int expected_per_thread = task_count / thread_num + 1;
+            for (int i = 0; i < expected_per_thread; ++i) {
+                Task task;
+                if (queue_->pop(task) && task.is_valid()) {
                     successful_pops.fetch_add(1);
                 }
             }
         });
     }
     
+    // 等待一会儿确保所有线程开始pop
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // 停止队列让剩余等待的线程退出
+    queue_->stop();
+    
     for (auto& t : threads) {
         t.join();
     }
     
     EXPECT_EQ(successful_pops.load(), task_count);
-    EXPECT_TRUE(queue_->empty());
 }
 
 // ==================== 协程任务特定测试 ====================

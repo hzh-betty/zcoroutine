@@ -82,6 +82,11 @@ public:
     bool is_running() const { return !stopping_.load(std::memory_order_relaxed); }
 
     /**
+     * @brief 获取待处理任务数
+     */
+    size_t pending_task_count() const { return task_queue_->size(); }
+
+    /**
      * @brief 获取当前调度器（线程本地）
      */
     static Scheduler* get_this();

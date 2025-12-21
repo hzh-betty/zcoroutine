@@ -42,17 +42,22 @@ namespace zcoroutine {
     IoScheduler::IoScheduler(int thread_count, const std::string &name)
         : stopping_(false) {
         ZCOROUTINE_LOG_INFO("IoScheduler::IoScheduler initializing name={}, thread_count={}", name, thread_count);
-
+    
         // 创建调度器
         scheduler_ = std::make_shared<Scheduler>(thread_count, name);
-
-        // 创建Epoll
+    
+        // 创建 Epoll
         constexpr size_t kDefaultMaxEvents = 256;
         epoll_poller_ = std::make_shared<EpollPoller>(kDefaultMaxEvents);
-
+    
         // 创建定时器管理器
         timer_manager_ = std::make_shared<TimerManager>();
-
+            
+        // 设置定时器插入回调：当有新定时器插入到最前面时，唤醒IO线程
+        timer_manager_->set_on_timer_inserted_at_front([this]() {
+            this->wake_up();
+        });
+    
         fd_contexts_.resize(64);
 
 
@@ -113,7 +118,13 @@ namespace zcoroutine {
         }
 
         stopping_.store(true, std::memory_order_relaxed);
-        ZCOROUTINE_LOG_INFO("IoScheduler::stop stopping...");
+        ZCOROUTINE_LOG_INFO("IoScheduler::stop stopping, pending_tasks={}...",
+                            scheduler_->pending_task_count());
+
+        // 先停止调度器（会等待所有任务完成）
+        if (scheduler_) {
+            scheduler_->stop();
+        }
 
         // 唤醒IO线程
         wake_up();
@@ -122,11 +133,6 @@ namespace zcoroutine {
         if (io_thread_ && io_thread_->joinable()) {
             io_thread_->join();
             ZCOROUTINE_LOG_DEBUG("IoScheduler::stop IO thread joined");
-        }
-
-        // 停止调度器
-        if (scheduler_) {
-            scheduler_->stop();
         }
 
         ZCOROUTINE_LOG_INFO("IoScheduler::stop stopped successfully");
@@ -282,17 +288,15 @@ namespace zcoroutine {
 
     Timer::ptr IoScheduler::add_timer(uint64_t timeout, std::function<void()> callback, bool recurring) {
         ZCOROUTINE_LOG_DEBUG("IoScheduler::add_timer timeout={}ms, recurring={}", timeout, recurring);
-        auto timer = timer_manager_->add_timer(timeout, std::move(callback), recurring);
-        wake_up();
-        return timer;
+        // 直接调用 TimerManager，它会通过回调自动唤醒IO线程
+        return timer_manager_->add_timer(timeout, std::move(callback), recurring);
     }
 
     Timer::ptr IoScheduler::add_condition_timer(uint64_t timeout, std::function<void()> callback,
                                                 std::weak_ptr<void> weak_cond, bool recurring) {
         ZCOROUTINE_LOG_DEBUG("IoScheduler::add_condition_timer timeout={}ms, recurring={}", timeout, recurring);
-        auto timer = timer_manager_->add_condition_timer(timeout, std::move(callback), weak_cond, recurring);
-        wake_up();
-        return timer;
+        // 直接调用 TimerManager，它会通过回调自动唤醒IO线程
+        return timer_manager_->add_condition_timer(timeout, std::move(callback), weak_cond, recurring);
     }
 
     void IoScheduler::io_thread_func() {
