@@ -2,7 +2,6 @@
 #include "util/thread_context.h"
 #include "util/zcoroutine_logger.h"
 #include <cassert>
-#include <cstring>
 
 namespace zcoroutine
 {
@@ -60,7 +59,7 @@ namespace zcoroutine
     Fiber::Fiber(std::function<void()> func,
                  size_t stack_size,
                  const std::string &name)
-        : callback_(std::move(func)), stack_size_(stack_size), context_(std::make_unique<Context>())
+        : stack_size_(stack_size), context_(std::make_unique<Context>()), callback_(std::move(func))
     {
 
         // 分配全局唯一ID
@@ -149,7 +148,7 @@ namespace zcoroutine
         set_this(prev_fiber);
 
         // 如果协程结束并且有异常，重新抛出
-        if (state_ == State::kTerminated && exception_)
+        if (exception_)
         {
             std::rethrow_exception(exception_);
         }

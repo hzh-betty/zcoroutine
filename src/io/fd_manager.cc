@@ -1,7 +1,6 @@
 #include "io/fd_manager.h"
 #include "hook/hook.h"
 
-#include <sys/socket.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/stat.h>
