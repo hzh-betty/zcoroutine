@@ -184,33 +184,37 @@ void FdContext::trigger_event(Event event) {
 
     // 获取事件上下文
     EventContext& ctx = get_event_context(event);
+    
+    // 先取出callback和fiber，避免回调中重新注册时被后续del_event清空
+    std::function<void()> callback = std::move(ctx.callback);
+    Fiber::ptr fiber = std::move(ctx.fiber);
+    
+    // 删除事件标志（此时EventContext已被清空，reset_event_context是空操作）
+    int old_events = events_;
+    events_ = events_ & ~event;
+    
+    ZCOROUTINE_LOG_DEBUG("FdContext::trigger_event deleted event: fd={}, event={}, old_events={}, new_events={}",
+                         fd_, event, old_events, events_);
+    
+    // 释放锁后执行回调，避免死锁
+    lock.unlock();
 
-    // 触发回调或唤醒协程
-    if (ctx.callback) {
+    // 触发回调或调度协程
+    if (callback) {
         ZCOROUTINE_LOG_DEBUG("FdContext::trigger_event executing callback: fd={}, event={}", fd_, event);
-        lock.unlock();
-        ctx.callback(); // 释放锁后执行回调，避免死锁
-        lock.lock();
-    } else if (ctx.fiber) {
+        callback();
+    } else if (fiber) {
         ZCOROUTINE_LOG_DEBUG("FdContext::trigger_event scheduling fiber: fd={}, event={}, fiber_id={}",
-                             fd_, event, ctx.fiber->id());
+                             fd_, event, fiber->id());
         Scheduler* scheduler = Scheduler::get_this();
         if (scheduler) {
-            scheduler->schedule(ctx.fiber);
+            scheduler->schedule(fiber);
         } else {
             ZCOROUTINE_LOG_WARN("FdContext::trigger_event no scheduler available: fd={}, event={}", fd_, event);
         }
     } else {
         ZCOROUTINE_LOG_WARN("FdContext::trigger_event no callback or fiber: fd={}, event={}", fd_, event);
     }
-
-    // // 重置事件上下文（事件被触发后自动删除）
-    // int old_events = events_;
-    // events_ = events_ & ~event;
-    // reset_event_context(ctx);
-    //
-    // ZCOROUTINE_LOG_DEBUG("FdContext::trigger_event complete: fd={}, event={}, old_events={}, new_events={}",
-    //                      fd_, event, old_events, events_);
 }
 
 FdContext::EventContext& FdContext::get_event_context(Event event) {

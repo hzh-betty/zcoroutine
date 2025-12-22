@@ -33,44 +33,39 @@ static const char* HTTP_RESPONSE =
     "\r\n"
     "Hello, World!";
 
-// 处理客户端连接读事件
-void handle_client_read(int client_fd) {
+// 处理客户端连接（在协程中运行）
+void handle_client_fiber(int client_fd) {
+    ZCOROUTINE_LOG_DEBUG("Handling client connection in fiber, fd={}", client_fd);
+    
+    // 启用Hook使IO操作异步化
+    set_hook_enable(true);
+    
     char buffer[4096] = {0};
     
-    while (true) {
-        int ret = recv(client_fd, buffer, sizeof(buffer), 0);
+    // 读取HTTP请求（hook会自动处理EAGAIN，让出协程）
+    int ret = recv(client_fd, buffer, sizeof(buffer), 0);
+    
+    if (ret > 0) {
+        ZCOROUTINE_LOG_DEBUG("Received {} bytes from fd={}", ret, client_fd);
         
-        if (ret > 0) {
-            // 收到HTTP请求，发送响应
-            // 可选：添加延迟模拟处理时间
-            // std::this_thread::sleep_for(std::chrono::milliseconds(10));
-            
-            int send_ret = send(client_fd, HTTP_RESPONSE, strlen(HTTP_RESPONSE), 0);
-            if (send_ret < 0) {
-                ZCOROUTINE_LOG_ERROR("send failed, fd={} errno={}", client_fd, errno);
-            }
-            
-            close(client_fd);
-            break;
-        } 
-        else if (ret == 0) {
-            // 客户端关闭连接
-            close(client_fd);
-            break;
+        // 发送HTTP响应（hook会自动处理EAGAIN）
+        int send_ret = send(client_fd, HTTP_RESPONSE, strlen(HTTP_RESPONSE), 0);
+        if (send_ret < 0) {
+            ZCOROUTINE_LOG_ERROR("send failed, fd={} errno={}", client_fd, errno);
+        } else {
+            ZCOROUTINE_LOG_DEBUG("Sent {} bytes to fd={}", send_ret, client_fd);
         }
-        else {
-            // ret < 0
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                // 非阻塞模式下，暂无数据，等待下次读事件
-                break;
-            } else {
-                // 其他错误
-                ZCOROUTINE_LOG_ERROR("recv error, fd={} errno={}", client_fd, errno);
-                close(client_fd);
-                break;
-            }
-        }
+    } 
+    else if (ret == 0) {
+        ZCOROUTINE_LOG_DEBUG("Client closed connection, fd={}", client_fd);
     }
+    else {
+        ZCOROUTINE_LOG_ERROR("recv error, fd={} errno={}", client_fd, errno);
+    }
+    
+    // 关闭连接
+    close(client_fd);
+    ZCOROUTINE_LOG_DEBUG("Connection closed, fd={}", client_fd);
 }
 
 // 接受新连接
@@ -83,12 +78,13 @@ void register_accept_event() {
     }
 }
 
-// accept回调函数
+// accept回调函数（在IO线程中执行）
 void accept_connection() {
     struct sockaddr_in client_addr;
     socklen_t client_len = sizeof(client_addr);
     memset(&client_addr, 0, sizeof(client_addr));
     
+    // 尝试接受连接（非阻塞）
     int client_fd = accept(listen_fd, (struct sockaddr*)&client_addr, &client_len);
     
     if (client_fd < 0) {
@@ -108,10 +104,11 @@ void accept_connection() {
     
     ZCOROUTINE_LOG_DEBUG("Accepted connection, client_fd={}", client_fd);
     
-    // 为新连接注册读事件
+    // 将客户端处理任务调度到协程中执行
     if (g_io_scheduler) {
-        g_io_scheduler->add_event(client_fd, FdContext::kRead, 
-            [client_fd]() { handle_client_read(client_fd); });
+        g_io_scheduler->schedule([client_fd]() {
+            handle_client_fiber(client_fd);
+        });
     }
     
     // 继续监听下一个连接

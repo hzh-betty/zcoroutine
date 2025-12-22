@@ -286,10 +286,31 @@ namespace zcoroutine {
             return;
         }
 
-        ZCOROUTINE_LOG_INFO("IoScheduler::trigger_event fd={}, event={}", fd, event);
-        // 先触发回调，再删除事件
-        fd_ctx->trigger_event(event);
-        del_event(fd, event);
+        ZCOROUTINE_LOG_DEBUG("IoScheduler::trigger_event fd={}, event={}", fd, event);
+        
+        // 先从 FdContext 中取出并清空 EventContext，避免回调中重新注册时被后续 del_event 清空
+        std::function<void()> callback;
+        Fiber::ptr fiber;
+        {
+            // 锁定 fd_ctx 并取出事件上下文
+            FdContext::EventContext& ctx = fd_ctx->get_event_context(event);
+            callback = std::move(ctx.callback);
+            fiber = std::move(ctx.fiber);
+        }
+
+        del_event(fd_ctx->fd(), event);
+        
+        // 最后触发回调或调度协程（epoll已更新，回调中可以安全地重新注册）
+        if (callback) {
+            ZCOROUTINE_LOG_DEBUG("IoScheduler::trigger_event executing callback: fd={}, event={}", fd, event);
+            callback();
+        } else if (fiber) {
+            ZCOROUTINE_LOG_DEBUG("IoScheduler::trigger_event scheduling fiber: fd={}, event={}, fiber_id={}",
+                                 fd, event, fiber->id());
+            schedule(fiber);
+        } else {
+            ZCOROUTINE_LOG_WARN("IoScheduler::trigger_event no callback or fiber: fd={}, event={}", fd, event);
+        }
     }
 
     void IoScheduler::io_thread_func() {
@@ -303,7 +324,7 @@ namespace zcoroutine {
             if (timeout < 0) {
                 timeout = 5000; // 默认5秒
             }
-            ZCOROUTINE_LOG_INFO("IoScheduler::io_thread_func waiting for events, timeout={}ms", timeout);
+            ZCOROUTINE_LOG_DEBUG("IoScheduler::io_thread_func waiting for events, timeout={}ms", timeout);
 
             // 等待IO事件
             int nfds = epoll_poller_->wait(timeout, events);
