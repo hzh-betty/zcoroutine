@@ -1,42 +1,17 @@
 #include "io/io_scheduler.h"
+#include "io/fd_context_table.h"
 #include "util/zcoroutine_logger.h"
 #include <unistd.h>
 #include <fcntl.h>
 #include <cstring>
 #include <cerrno>
-#include <algorithm>
 
 namespace zcoroutine {
     FdContext::ptr IoScheduler::get_fd_context(int fd, bool auto_create) {
-        // 边界检查 
-        if (fd < 0) {
-            return nullptr;
+        if (auto_create) {
+            return fd_context_table_->get_or_create(fd);
         }
-        if (static_cast<size_t>(fd) < fd_contexts_.size()) {
-            if (fd_contexts_[fd] || !auto_create) {
-                return fd_contexts_[fd];
-            }
-        }
-        else if (!auto_create) {
-            return nullptr;
-        }
-
-        // 扩展fd_contexts_大小
-        if (static_cast<size_t>(fd) >= fd_contexts_.size()) {
-            size_t old = fd_contexts_.size();
-            size_t want = std::max(static_cast<size_t>(fd + 1), old + old / 2);
-            if (want <= old) {
-                want = static_cast<size_t>(fd + 1);
-            }
-            fd_contexts_.resize(want);
-        }
-
-        // 创建新的FdContext
-        if (!fd_contexts_[fd] && auto_create) {
-            fd_contexts_[fd] = std::make_shared<FdContext>(fd);
-        }
-
-        return fd_contexts_[fd];
+        return fd_context_table_->get(fd);
     }
 
     IoScheduler::IoScheduler(int thread_count, const std::string &name)
@@ -55,8 +30,8 @@ namespace zcoroutine {
             this->wake_up();
         });
     
-        fd_contexts_.resize(64);
-
+        // 创建 FdContext 表
+        fd_context_table_ = std::make_unique<FdContextTable>();
 
         // 创建唤醒管道
         int ret = pipe(wake_fd_);

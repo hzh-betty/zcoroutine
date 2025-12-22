@@ -39,30 +39,39 @@ void handle_client_fiber(int client_fd) {
     
     // 启用Hook使IO操作异步化
     set_hook_enable(true);
-    
-    char buffer[4096] = {0};
-    
-    // 读取HTTP请求（hook会自动处理EAGAIN，让出协程）
-    int ret = recv(client_fd, buffer, sizeof(buffer), 0);
-    
-    if (ret > 0) {
-        ZCOROUTINE_LOG_DEBUG("Received {} bytes from fd={}", ret, client_fd);
-        
-        // 发送HTTP响应（hook会自动处理EAGAIN）
-        int send_ret = send(client_fd, HTTP_RESPONSE, strlen(HTTP_RESPONSE), 0);
-        if (send_ret < 0) {
-            ZCOROUTINE_LOG_ERROR("send failed, fd={} errno={}", client_fd, errno);
-        } else {
-            ZCOROUTINE_LOG_DEBUG("Sent {} bytes to fd={}", send_ret, client_fd);
+
+    while (true) {
+        char buffer[4096] = {0};
+
+        // 读取HTTP请求（hook会自动处理EAGAIN，让出协程）
+        int ret = recv(client_fd, buffer, sizeof(buffer), 0);
+
+        if (ret > 0) {
+            ZCOROUTINE_LOG_DEBUG("Received {} bytes from fd={}", ret, client_fd);
+
+            // 发送HTTP响应（hook会自动处理EAGAIN）
+            int send_ret = send(client_fd, HTTP_RESPONSE, strlen(HTTP_RESPONSE), 0);
+            if (send_ret < 0) {
+                ZCOROUTINE_LOG_ERROR("send failed, fd={} errno={}", client_fd, errno);
+            } else {
+                ZCOROUTINE_LOG_DEBUG("Sent {} bytes to fd={}", send_ret, client_fd);
+            }
+            break;
         }
-    } 
-    else if (ret == 0) {
-        ZCOROUTINE_LOG_DEBUG("Client closed connection, fd={}", client_fd);
+        else
+        {
+            if (ret == 0 || errno != EAGAIN)
+            {
+                break;
+            }
+            else if (errno == EAGAIN)
+            {
+                // 非阻塞情况下，当前无数据可读，等待下次可读事件
+                break;
+            }
+        }
     }
-    else {
-        ZCOROUTINE_LOG_ERROR("recv error, fd={} errno={}", client_fd, errno);
-    }
-    
+
     // 关闭连接
     close(client_fd);
     ZCOROUTINE_LOG_DEBUG("Connection closed, fd={}", client_fd);
@@ -105,8 +114,13 @@ void accept_connection() {
     ZCOROUTINE_LOG_DEBUG("Accepted connection, client_fd={}", client_fd);
     
     // 将客户端处理任务调度到协程中执行
+    // if (g_io_scheduler) {
+    //     g_io_scheduler->schedule([client_fd]() {
+    //         handle_client_fiber(client_fd);
+    //     });
+    // }
     if (g_io_scheduler) {
-        g_io_scheduler->schedule([client_fd]() {
+        g_io_scheduler->add_event(client_fd, FdContext::kRead, [client_fd]() {
             handle_client_fiber(client_fd);
         });
     }

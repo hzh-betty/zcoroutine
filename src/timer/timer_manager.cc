@@ -17,7 +17,6 @@ namespace zcoroutine {
     TimerManager::~TimerManager() {
         std::lock_guard<std::mutex> lock(mutex_);
         timers_.clear();
-        tickled_ = false;
         ZCOROUTINE_LOG_DEBUG("TimerManager destroyed");
     }
 
@@ -50,7 +49,6 @@ namespace zcoroutine {
     int TimerManager::get_next_timeout() {
         std::lock_guard<std::mutex> lock(mutex_);
         ZCOROUTINE_LOG_DEBUG("TimerManager::get_next_timeout called");
-        tickled_ = false;
 
         if (timers_.empty()) {
             ZCOROUTINE_LOG_DEBUG("No timers available");
@@ -116,11 +114,8 @@ namespace zcoroutine {
         }
 
         // 如果插入的定时器在最前面，调用回调通知
-        if (at_front && !tickled_) {
-            tickled_ = true;
-            if (on_timer_inserted_callback_) {
-                on_timer_inserted_callback_();
-            }
+        if (at_front && on_timer_inserted_callback_) {
+            on_timer_inserted_callback_();
             ZCOROUTINE_LOG_DEBUG("Timer inserted at front, callback notified");
         }
     }

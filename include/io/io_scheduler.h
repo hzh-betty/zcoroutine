@@ -3,12 +3,11 @@
 
 #include <memory>
 #include <atomic>
-#include <vector>
 #include "scheduling/scheduler.h"
 #include "io/epoll_poller.h"
 #include "io/fd_context.h"
+#include "io/fd_context_table.h"
 #include "timer/timer_manager.h"
-#include "sync/rw_mutex.h"
 
 namespace zcoroutine {
     /**
@@ -128,14 +127,11 @@ namespace zcoroutine {
         FdContext::ptr get_fd_context(int fd, bool auto_create);
 
     private:
-        EpollPoller::ptr epoll_poller_; // Epoll封装
-        TimerManager::ptr timer_manager_; // 定时器管理器
-
-        std::vector<FdContext::ptr> fd_contexts_;
-
-        std::unique_ptr<std::thread> io_thread_; // IO线程
-
-        int wake_fd_[2]{}; // 用于唤醒epoll的管道
+        EpollPoller::ptr epoll_poller_;                     // Epoll封装
+        TimerManager::ptr timer_manager_;                   // 定时器管理器
+        std::unique_ptr<FdContextTable> fd_context_table_;  // FdContext表
+        std::unique_ptr<std::thread> io_thread_;            // IO线程
+        int wake_fd_[2]{};                                  // 用于唤醒epoll的管道
     };
 } // namespace zcoroutine
 

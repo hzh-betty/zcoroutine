@@ -102,7 +102,6 @@ private:
     std::set<Timer::ptr, TimerComparator> timers_;      // 定时器集合
     mutable std::mutex mutex_;                           // 互斥锁
     uint64_t last_time_ = 0;                             // 上次检测时间
-    bool tickled_ = false;                               // 是否已通知
     OnTimerInsertedCallback on_timer_inserted_callback_; // 定时器插入队首时的回调
 
     friend class Timer;
