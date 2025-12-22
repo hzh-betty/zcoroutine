@@ -22,6 +22,7 @@ FdCtx::~FdCtx() = default;
 bool FdCtx::init() {
     if (is_init_) return true;
 
+    // 获取文件状态
     struct stat st{};
     if (fstat(fd_, &st) == -1) {
         is_init_ = false;
@@ -30,16 +31,18 @@ bool FdCtx::init() {
     }
 
     is_init_ = true;
-    is_socket_ = S_ISSOCK(st.st_mode);
+    is_socket_ = S_ISSOCK(st.st_mode); // 判断是否是Socket套接字
 
+    // 如果是套接字
     if (is_socket_) {
         int flags = 0;
-        if (fcntl_f) {
+        if (fcntl_f) { // 如果有自定义的fcntl函数
             flags = fcntl_f(fd_, F_GETFL, 0);
         } else {
             flags = ::fcntl(fd_, F_GETFL, 0);
         }
 
+        // 设置非阻塞模式
         if (!(flags & O_NONBLOCK)) {
             const int newf = flags | O_NONBLOCK;
             if (fcntl_f) {
@@ -70,7 +73,7 @@ uint64_t FdCtx::get_timeout(const int type) const {
 }
 
 FdManager::FdManager() {
-    fd_datas_.resize(64);
+    fd_datas_.resize(64); 
     ZCOROUTINE_LOG_DEBUG("FdManager initialized with capacity={}", fd_datas_.size());
 }
 
@@ -81,6 +84,8 @@ FdCtx::ptr FdManager::get_ctx(int fd, const bool auto_create) {
 
     {
         RWMutex::ReadLock lock(mutex_);
+        // 先尝试读锁，如果读锁成功，说明没有其他协程会修改fd_datas_，
+        // 所以可以避免写锁的开销
         if (static_cast<size_t>(fd) < fd_datas_.size()) {
             auto &it = fd_datas_[fd];
             if (it || !auto_create) {
@@ -92,11 +97,14 @@ FdCtx::ptr FdManager::get_ctx(int fd, const bool auto_create) {
     }
 
     RWMutex::WriteLock lock(mutex_);
+
     if (static_cast<size_t>(fd) >= fd_datas_.size()) {
         const size_t old = fd_datas_.size();
-        size_t want = std::max(static_cast<size_t>(fd + 1), old + old / 2);
-        if (want <= old) {
-            want = static_cast<size_t>(fd + 1);
+        // 计算新的容量
+        // 新的容量至少是当前fd+1，或者当前容量的1.5倍
+        size_t want = std::max(static_cast<size_t>(fd + 1), old + old / 2); 
+        if (want <= old) { 
+            want = static_cast<size_t>(fd + 1); // 则新的容量设为当前fd+1
         }
         fd_datas_.resize(want);
     }

@@ -288,7 +288,8 @@ namespace zcoroutine {
 
         ZCOROUTINE_LOG_DEBUG("IoScheduler::trigger_event fd={}, event={}", fd, event);
         
-        // 先从 FdContext 中取出并清空 EventContext，避免回调中重新注册时被后续 del_event 清空
+        // 先从 FdContext 中取出并清空 EventContext，
+        // 避免回调中重新注册时被后续 del_event 清空
         std::function<void()> callback;
         Fiber::ptr fiber;
         {

@@ -87,9 +87,7 @@ int EpollPoller::wait(int timeout_ms, std::vector<epoll_event>& events) {
     
     // 拷贝就绪事件
     events.clear();
-    for (int i = 0; i < nfds; ++i) {
-        events.push_back(events_[i]);
-    }
+    events.assign(events_.begin(), events_.begin() + nfds);
     
     ZCOROUTINE_LOG_DEBUG("EpollPoller::wait nfds={} timeout={}", nfds, timeout_ms);
     return nfds;
