@@ -109,7 +109,6 @@ protected:
      */
     void schedule_loop();
 
-private:
     std::string name_;                              // 调度器名称
     int thread_count_;                              // 线程数量
     std::vector<std::unique_ptr<std::thread>> threads_;  // 线程池

@@ -141,7 +141,12 @@ TEST_F(TimerSchedulerIntegrationTest, CancelTimerStopsScheduling) {
             cb();
         }
     }
-    
+
+    // 等待直到 count >= 3 或超时
+    for (int i = 0; i < 50 && count.load() < 3; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
     int count_before_cancel = count.load();
     EXPECT_GT(count_before_cancel, 0);
     
@@ -246,6 +251,11 @@ TEST_F(TimerSchedulerIntegrationTest, TimerBehaviorAfterSchedulerStop) {
         for (auto& cb : callbacks) {
             cb();
         }
+    }
+    
+    // 等待直到 count >= 3 或超时
+    for (int i = 0; i < 50 && count.load() < 3; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     
     int count_before_stop = count.load();

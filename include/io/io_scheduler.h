@@ -8,26 +8,29 @@
 #include "io/epoll_poller.h"
 #include "io/fd_context.h"
 #include "timer/timer_manager.h"
-#include "util/noncopyable.h"
 #include "sync/rw_mutex.h"
 
 namespace zcoroutine {
     /**
      * @brief IO调度器
      *
-     * 组合Scheduler、EpollPoller和TimerManager，提供IO事件调度功能。
-     * 使用组合而非继承的设计模式，职责更加清晰。
+     * 继承Scheduler，扩展IO事件和定时器功能。
      */
-    class IoScheduler : public NonCopyable {
+    class IoScheduler : public Scheduler {
     public:
         using ptr = std::shared_ptr<IoScheduler>;
 
+        /**
+         * @brief 构造函数
+         * @param thread_count 线程数量
+         * @param name 调度器名称
+         */
         IoScheduler(int thread_count, const std::string &name);
 
         /**
          * @brief 析构函数
          */
-        ~IoScheduler();
+        ~IoScheduler() override;
 
         /**
          * @brief 启动IO调度器
@@ -38,23 +41,6 @@ namespace zcoroutine {
          * @brief 停止IO调度器
          */
         void stop();
-
-        /**
-         * @brief 调度协程
-         * @param fiber 协程指针
-         */
-        void schedule(Fiber::ptr fiber);
-
-        /**
-             * @brief 模板方法：调度可调用对象
-             * @tparam F 函数类型
-             * @tparam Args 参数类型
-             */
-        template<class F, class... Args>
-        void schedule(F &&f, Args &&... args) {
-            scheduler_->schedule(std::forward<F>(f), std::forward<Args>(args)...);
-            wake_up();
-        }
 
         /**
          * @brief 添加IO事件
@@ -89,6 +75,14 @@ namespace zcoroutine {
         int cancel_all(int fd);
 
         /**
+         * @brief 触发IO事件（先触发回调再删除事件）
+         * @param fd 文件描述符
+         * @param event 事件类型
+         * 
+         */
+        void trigger_event(int fd, FdContext::Event event);
+
+        /**
          * @brief 添加定时器
          * @param timeout 超时时间（毫秒）
          * @param callback 定时器回调
@@ -109,23 +103,13 @@ namespace zcoroutine {
                                        std::weak_ptr<void> weak_cond, bool recurring = false);
 
         /**
-         * @brief 获取Scheduler
-         */
-        Scheduler::ptr scheduler() const { return scheduler_; }
-
-        /**
          * @brief 获取TimerManager
          */
         TimerManager::ptr timer_manager() const { return timer_manager_; }
 
         /**
-         * @brief 获取单例
-         */
-        static ptr GetInstance();
-
-        /**
          * @brief 获取当前线程的IoScheduler
-         * @return 当前线程的IoScheduler指针
+         * @return 当前线程的IoScheduler指针，如果不是IoScheduler则返回nullptr
          */
         static IoScheduler *get_this();
 
@@ -144,18 +128,14 @@ namespace zcoroutine {
         FdContext::ptr get_fd_context(int fd, bool auto_create);
 
     private:
-        Scheduler::ptr scheduler_; // 任务调度器
         EpollPoller::ptr epoll_poller_; // Epoll封装
         TimerManager::ptr timer_manager_; // 定时器管理器
 
         std::vector<FdContext::ptr> fd_contexts_;
 
         std::unique_ptr<std::thread> io_thread_; // IO线程
-        std::atomic<bool> stopping_; // 停止标志
 
         int wake_fd_[2]{}; // 用于唤醒epoll的管道
-
-        static IoScheduler::ptr s_instance_; // 单例
     };
 } // namespace zcoroutine
 

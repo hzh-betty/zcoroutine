@@ -120,7 +120,7 @@ void accept_connection() {
 
 int main(int argc, char* argv[]) {
     // 初始化日志系统
-    zcoroutine::init_logger(zlog::LogLevel::value::INFO);
+    zcoroutine::init_logger(zlog::LogLevel::value::DEBUG);
     
     // 默认端口
     int port = 8080;
@@ -180,6 +180,8 @@ int main(int argc, char* argv[]) {
     // 创建IoScheduler（使用指定数量的工作线程）
     auto io_scheduler = std::make_shared<IoScheduler>(thread_num, "HttpServer");
     g_io_scheduler = io_scheduler;
+
+    g_io_scheduler->start();
     
     // 启用Hook（使系统调用异步化）
     set_hook_enable(true);

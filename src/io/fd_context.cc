@@ -204,13 +204,13 @@ void FdContext::trigger_event(Event event) {
         ZCOROUTINE_LOG_WARN("FdContext::trigger_event no callback or fiber: fd={}, event={}", fd_, event);
     }
 
-    // 重置事件上下文（事件被触发后自动删除）
-    int old_events = events_;
-    events_ = events_ & ~event;
-    reset_event_context(ctx);
-
-    ZCOROUTINE_LOG_DEBUG("FdContext::trigger_event complete: fd={}, event={}, old_events={}, new_events={}",
-                         fd_, event, old_events, events_);
+    // // 重置事件上下文（事件被触发后自动删除）
+    // int old_events = events_;
+    // events_ = events_ & ~event;
+    // reset_event_context(ctx);
+    //
+    // ZCOROUTINE_LOG_DEBUG("FdContext::trigger_event complete: fd={}, event={}, old_events={}, new_events={}",
+    //                      fd_, event, old_events, events_);
 }
 
 FdContext::EventContext& FdContext::get_event_context(Event event) {

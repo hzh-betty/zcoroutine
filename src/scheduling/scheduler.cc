@@ -8,7 +8,8 @@ namespace zcoroutine
 {
 
     Scheduler::Scheduler(int thread_count, std::string name)
-        : name_(std::move(name)), thread_count_(thread_count), task_queue_(std::make_unique<TaskQueue>()), stopping_(false), active_thread_count_(0), idle_thread_count_(0)
+        : name_(std::move(name)), thread_count_(thread_count), task_queue_(std::make_unique<TaskQueue>()),
+        stopping_(true), active_thread_count_(0), idle_thread_count_(0)
     {
 
         ZCOROUTINE_LOG_INFO("Scheduler[{}] created with thread_count={}", name_, thread_count_);
@@ -23,6 +24,8 @@ namespace zcoroutine
 
     void Scheduler::start()
     {
+        stopping_.store(false, std::memory_order_relaxed);
+
         if (!threads_.empty())
         {
             ZCOROUTINE_LOG_WARN("Scheduler[{}] already started, skip", name_);

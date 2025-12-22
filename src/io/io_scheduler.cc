@@ -40,11 +40,8 @@ namespace zcoroutine {
     }
 
     IoScheduler::IoScheduler(int thread_count, const std::string &name)
-        : stopping_(false) {
+        : Scheduler(thread_count, name) {
         ZCOROUTINE_LOG_INFO("IoScheduler::IoScheduler initializing name={}, thread_count={}", name, thread_count);
-    
-        // 创建调度器
-        scheduler_ = std::make_shared<Scheduler>(thread_count, name);
     
         // 创建 Epoll
         constexpr size_t kDefaultMaxEvents = 256;
@@ -100,8 +97,8 @@ namespace zcoroutine {
     void IoScheduler::start() {
         ZCOROUTINE_LOG_INFO("IoScheduler::start starting scheduler");
 
-        // 启动调度器
-        scheduler_->start();
+        // 启动基类调度器
+        Scheduler::start();
 
         // 启动IO线程
         io_thread_ = std::make_unique<std::thread>([this]() {
@@ -112,19 +109,9 @@ namespace zcoroutine {
     }
 
     void IoScheduler::stop() {
-        if (stopping_.load(std::memory_order_relaxed)) {
-            ZCOROUTINE_LOG_DEBUG("IoScheduler::stop already stopping, skip");
-            return;
-        }
 
-        stopping_.store(true, std::memory_order_relaxed);
-        ZCOROUTINE_LOG_INFO("IoScheduler::stop stopping, pending_tasks={}...",
-                            scheduler_->pending_task_count());
-
-        // 先停止调度器（会等待所有任务完成）
-        if (scheduler_) {
-            scheduler_->stop();
-        }
+        // 先停止基类调度器（会等待所有任务完成）
+        Scheduler::stop();
 
         // 唤醒IO线程
         wake_up();
@@ -136,13 +123,6 @@ namespace zcoroutine {
         }
 
         ZCOROUTINE_LOG_INFO("IoScheduler::stop stopped successfully");
-    }
-
-    void IoScheduler::schedule(Fiber::ptr fiber) {
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::schedule fiber name={}, id={}",
-                             fiber->name(), fiber->id());
-        scheduler_->schedule(fiber);
-        wake_up(); // 唤醒IO线程
     }
 
 
@@ -299,6 +279,19 @@ namespace zcoroutine {
         return timer_manager_->add_condition_timer(timeout, std::move(callback), weak_cond, recurring);
     }
 
+    void IoScheduler::trigger_event(int fd, FdContext::Event event) {
+        FdContext::ptr fd_ctx = get_fd_context(fd, false);
+        if (!fd_ctx) {
+            ZCOROUTINE_LOG_WARN("IoScheduler::trigger_event FdContext not found, fd={}", fd);
+            return;
+        }
+
+        ZCOROUTINE_LOG_INFO("IoScheduler::trigger_event fd={}, event={}", fd, event);
+        // 先触发回调，再删除事件
+        fd_ctx->trigger_event(event);
+        del_event(fd, event);
+    }
+
     void IoScheduler::io_thread_func() {
         ZCOROUTINE_LOG_INFO("IoScheduler::io_thread_func IO thread started");
 
@@ -310,6 +303,7 @@ namespace zcoroutine {
             if (timeout < 0) {
                 timeout = 5000; // 默认5秒
             }
+            ZCOROUTINE_LOG_INFO("IoScheduler::io_thread_func waiting for events, timeout={}ms", timeout);
 
             // 等待IO事件
             int nfds = epoll_poller_->wait(timeout, events);
@@ -343,18 +337,17 @@ namespace zcoroutine {
 
                 if (ev.events & EPOLLIN) {
                     ZCOROUTINE_LOG_DEBUG("IoScheduler::io_thread_func triggering READ event, fd={}", fd);
-                    fd_ctx->trigger_event(FdContext::kRead);
+                    trigger_event(fd, FdContext::kRead);
                 }
                 if (ev.events & EPOLLOUT) {
                     ZCOROUTINE_LOG_DEBUG("IoScheduler::io_thread_func triggering WRITE event, fd={}", fd);
-                    fd_ctx->trigger_event(FdContext::kWrite);
+                    trigger_event(fd, FdContext::kWrite);
                 }
                 if (ev.events & (EPOLLERR | EPOLLHUP)) {
-                    ZCOROUTINE_LOG_WARN("IoScheduler::io_thread_func error/hup event, fd={}",
-                                        fd);
+                    ZCOROUTINE_LOG_WARN("IoScheduler::io_thread_func error/hup event, fd={}", fd);
                     // 错误事件，同时触发读写
-                    fd_ctx->trigger_event(FdContext::kRead);
-                    fd_ctx->trigger_event(FdContext::kWrite);
+                    trigger_event(fd, FdContext::kRead);
+                    trigger_event(fd, FdContext::kWrite);
                 }
             }
 
@@ -365,7 +358,7 @@ namespace zcoroutine {
                                      expired_cbs.size());
             }
             for (const auto &cb: expired_cbs) {
-                schedule(cb);
+                Scheduler::schedule(cb);
             }
         }
 
@@ -381,12 +374,7 @@ namespace zcoroutine {
         }
     }
 
-    IoScheduler::ptr IoScheduler::GetInstance() {
-        static ptr instance = std::make_shared<IoScheduler>(4, "GlobalIoScheduler");
-        return instance;
-    }
-
     IoScheduler *IoScheduler::get_this() {
-        return dynamic_cast<IoScheduler *>(Scheduler::get_this());
+        return dynamic_cast<IoScheduler*>(Scheduler::get_this());
     }
 } // namespace zcoroutine
