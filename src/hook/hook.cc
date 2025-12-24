@@ -1,7 +1,7 @@
 #include "hook/hook.h"
 #include "util/zcoroutine_logger.h"
 #include "io/io_scheduler.h"
-#include "io/fd_manager.h"
+#include "io/status_table.h"
 #include "runtime/fiber.h"
 #include <dlfcn.h>
 #include <fcntl.h>
@@ -118,8 +118,8 @@ static ssize_t do_io_hook(int fd, OriginFun fun, const char* hook_fun_name,
     }
 
     // 获取文件描述符上下文
-    zcoroutine::FdManager::ptr fd_manager = zcoroutine::FdManager::GetInstance();
-    zcoroutine::FdCtx::ptr fd_ctx = fd_manager->get_ctx(fd);
+    zcoroutine::StatusTable::ptr status_table = zcoroutine::StatusTable::GetInstance();
+    zcoroutine::SocketStatus::ptr fd_ctx = status_table->get(fd);
     if (!fd_ctx) {
         return fun(fd, std::forward<Args>(args)...);
     }
@@ -139,68 +139,69 @@ static ssize_t do_io_hook(int fd, OriginFun fun, const char* hook_fun_name,
     uint64_t timeout = fd_ctx->get_timeout(timeout_so);
     std::shared_ptr<timer_info> tinfo = std::make_shared<timer_info>();
 
-retry:
-    // 尝试执行IO操作
-    ssize_t ret = fun(fd, std::forward<Args>(args)...);
+    while (true) {
+        // 尝试执行IO操作
+        ssize_t ret = fun(fd, std::forward<Args>(args)...);
 
-    // 如果被系统中断，重试
-    while (ret == -1 && errno == EINTR) {
-        ret = fun(fd, std::forward<Args>(args)...);
-    }
-
-    // 如果资源暂时不可用（EAGAIN），进行协程调度
-    if (ret == -1 && errno == EAGAIN) {
-        zcoroutine::IoScheduler* iom = zcoroutine::IoScheduler::get_this();
-        if (!iom) {
-            return fun(fd, std::forward<Args>(args)...);
+        // 如果被系统中断，重试
+        while (ret == -1 && errno == EINTR) {
+            ret = fun(fd, std::forward<Args>(args)...);
         }
 
-        zcoroutine::Timer::ptr timer = nullptr;
-        std::weak_ptr<timer_info> winfo(tinfo);
+        // 如果资源暂时不可用（EAGAIN），进行协程调度
+        if (ret == -1 && errno == EAGAIN) {
+            zcoroutine::IoScheduler* iom = zcoroutine::IoScheduler::get_this();
+            if (!iom) {
+                return fun(fd, std::forward<Args>(args)...);
+            }
 
-        // 如果设置了超时时间，添加条件定时器
-        if (timeout != static_cast<uint64_t>(-1) && timeout != 0) {
-            timer = iom->add_condition_timer(timeout, [winfo, fd, iom, event]() {
-                auto it = winfo.lock();
-                if (!it || it->cancelled) {
-                    return;
+            zcoroutine::Timer::ptr timer = nullptr;
+            std::weak_ptr<timer_info> winfo(tinfo);
+
+            // 如果设置了超时时间，添加条件定时器
+            if (timeout != static_cast<uint64_t>(-1) && timeout != 0) {
+                timer = iom->add_condition_timer(timeout, [winfo, fd, iom, event]() {
+                    auto it = winfo.lock();
+                    if (!it || it->cancelled) {
+                        return;
+                    }
+                    it->cancelled = ETIMEDOUT;
+                    // 取消IO事件
+                    iom->cancel_event(fd, static_cast<zcoroutine::FdContext::Event>(event));
+                }, winfo);
+            }
+
+            // 添加IO事件监听
+            int add_event_ret = iom->add_event(fd, static_cast<zcoroutine::FdContext::Event>(event));
+            if (add_event_ret != 0) {
+                ZCOROUTINE_LOG_WARN("{} add_event failed, fd={}, event={}, ret={}",
+                                   hook_fun_name, fd, event, add_event_ret);
+                if (timer) {
+                    timer->cancel();
                 }
-                it->cancelled = ETIMEDOUT;
-                // 取消IO事件
-                iom->cancel_event(fd, static_cast<zcoroutine::FdContext::Event>(event));
-            }, winfo);
-        }
+                return -1;
+            }
 
-        // 添加IO事件监听
-        int add_event_ret = iom->add_event(fd, static_cast<zcoroutine::FdContext::Event>(event));
-        if (add_event_ret != 0) {
-            ZCOROUTINE_LOG_WARN("{} add_event failed, fd={}, event={}, ret={}",
-                               hook_fun_name, fd, event, add_event_ret);
+            // 让出协程，等待事件就绪
+            zcoroutine::Fiber::yield();
+
+            // 协程被唤醒后，取消定时器
             if (timer) {
                 timer->cancel();
             }
-            return -1;
+
+            // 检查是否超时
+            if (tinfo->cancelled) {
+                errno = tinfo->cancelled;
+                return -1;
+            }
+
+            // 重新尝试IO操作
+            continue;
         }
 
-        // 让出协程，等待事件就绪
-        zcoroutine::Fiber::yield();
-
-        // 协程被唤醒后，取消定时器
-        if (timer) {
-            timer->cancel();
-        }
-
-        // 检查是否超时
-        if (tinfo->cancelled) {
-            errno = tinfo->cancelled;
-            return -1;
-        }
-
-        // 重试IO操作
-        goto retry;
+        return ret;
     }
-
-    return ret;
 }
 
 extern "C" {
@@ -296,9 +297,9 @@ int socket(int domain, int type, int protocol) {
         return fd;
     }
 
-    // 获取FdManager并注册该fd
-    zcoroutine::FdManager::ptr fd_manager = zcoroutine::FdManager::GetInstance();
-    fd_manager->get_ctx(fd, true);  // auto_create = true
+    // 获取 StatusTable 并注册该fd
+    zcoroutine::StatusTable::ptr status_table = zcoroutine::StatusTable::GetInstance();
+    status_table->get(fd, true);  // auto_create = true
 
     ZCOROUTINE_LOG_DEBUG("hook::socket fd={}", fd);
     return fd;
@@ -314,10 +315,10 @@ int socketpair(int domain, int type, int protocol, int sv[2]) {
         return ret;
     }
 
-    // 获取FdManager并注册两个fd
-    zcoroutine::FdManager::ptr fd_manager = zcoroutine::FdManager::GetInstance();
-    fd_manager->get_ctx(sv[0], true);  // auto_create = true
-    fd_manager->get_ctx(sv[1], true);  // auto_create = true
+    // 获取 StatusTable 并注册两个fd
+    zcoroutine::StatusTable::ptr status_table = zcoroutine::StatusTable::GetInstance();
+    status_table->get(sv[0], true);  // auto_create = true
+    status_table->get(sv[1], true);  // auto_create = true
 
     ZCOROUTINE_LOG_DEBUG("hook::socketpair sv[0]={}, sv[1]={}", sv[0], sv[1]);
     return ret;
@@ -329,7 +330,7 @@ int connect_with_timeout(int fd, const struct sockaddr* addr, socklen_t addrlen,
     }
 
     // 获取文件描述符上下文
-    zcoroutine::FdCtx::ptr ctx = zcoroutine::FdManager::GetInstance()->get_ctx(fd);
+    zcoroutine::SocketStatus::ptr ctx = zcoroutine::StatusTable::GetInstance()->get(fd);
     if (!ctx || ctx->is_closed()) {
         errno = EBADF;
         return -1;
@@ -424,7 +425,7 @@ int accept(int sockfd, struct sockaddr* addr, socklen_t* addrlen) {
                                           zcoroutine::FdContext::kRead, SO_RCVTIMEO, addr, addrlen));
     if (fd >= 0) {
         // 注册新连接的fd
-        zcoroutine::FdManager::GetInstance()->get_ctx(fd, true);
+        zcoroutine::StatusTable::GetInstance()->get(fd, true);
     }
     return fd;
 }
@@ -493,15 +494,15 @@ int close(int fd) {
     }
 
     // 获取文件描述符上下文
-    zcoroutine::FdCtx::ptr ctx = zcoroutine::FdManager::GetInstance()->get_ctx(fd);
+    zcoroutine::SocketStatus::ptr ctx = zcoroutine::StatusTable::GetInstance()->get(fd);
     if (ctx) {
         zcoroutine::IoScheduler* iom = zcoroutine::IoScheduler::get_this();
         if (iom) {
             // 取消该fd上的所有事件
             iom->cancel_all(fd);
         }
-        // 从FdManager中删除
-        zcoroutine::FdManager::GetInstance()->delete_ctx(fd);
+        // 从 StatusTable 中删除
+        zcoroutine::StatusTable::GetInstance()->del(fd);
     }
 
     return close_f(fd);
@@ -519,7 +520,7 @@ int fcntl(int fd, int cmd, ... /* arg */) {
             int arg = va_arg(va, int);
             va_end(va);
 
-            zcoroutine::FdCtx::ptr ctx = zcoroutine::FdManager::GetInstance()->get_ctx(fd);
+            zcoroutine::SocketStatus::ptr ctx = zcoroutine::StatusTable::GetInstance()->get(fd);
             if (!ctx || ctx->is_closed() || !ctx->is_socket()) {
                 return fcntl_f(fd, cmd, arg);
             }
@@ -540,7 +541,7 @@ int fcntl(int fd, int cmd, ... /* arg */) {
             va_end(va);
             int ret = fcntl_f(fd, cmd);
             
-            zcoroutine::FdCtx::ptr ctx = zcoroutine::FdManager::GetInstance()->get_ctx(fd);
+            zcoroutine::SocketStatus::ptr ctx = zcoroutine::StatusTable::GetInstance()->get(fd);
             if (!ctx || ctx->is_closed() || !ctx->is_socket()) {
                 return ret;
             }
@@ -615,7 +616,7 @@ int ioctl(int fd, unsigned long request, ...) {
     if (request == FIONBIO) {
         bool user_nonblock = !!*static_cast<int*>(arg);
         
-        zcoroutine::FdCtx::ptr ctx = zcoroutine::FdManager::GetInstance()->get_ctx(fd);
+        zcoroutine::SocketStatus::ptr ctx = zcoroutine::StatusTable::GetInstance()->get(fd);
         if (ctx && !ctx->is_closed() && ctx->is_socket()) {
             ctx->set_user_nonblock(user_nonblock);
         }
@@ -635,7 +636,7 @@ int setsockopt(int sockfd, int level, int optname,
     // 处理超时设置
     if (level == SOL_SOCKET) {
         if (optname == SO_RCVTIMEO || optname == SO_SNDTIMEO) {
-            zcoroutine::FdCtx::ptr ctx = zcoroutine::FdManager::GetInstance()->get_ctx(sockfd);
+            zcoroutine::SocketStatus::ptr ctx = zcoroutine::StatusTable::GetInstance()->get(sockfd);
             if (ctx) {
                 const timeval* tv = static_cast<const timeval*>(optval);
                 uint64_t timeout_ms = tv->tv_sec * 1000 + tv->tv_usec / 1000;

@@ -3,6 +3,8 @@
 
 #include <vector>
 #include <memory>
+
+#include "util/noncopyable.h"
 #include "io/fd_context.h"
 #include "sync/rw_mutex.h"
 
@@ -14,7 +16,7 @@ namespace zcoroutine {
  * 管理 fd -> FdContext 的映射关系，提供线程安全的访问接口。
  * 使用读写锁优化读多写少的访问模式。
  */
-class FdContextTable {
+class FdContextTable : public NonCopyable {
 public:
     /**
      * @brief 构造函数
@@ -23,10 +25,6 @@ public:
     explicit FdContextTable(size_t initial_capacity = 64);
 
     ~FdContextTable() = default;
-
-    // 禁止拷贝
-    FdContextTable(const FdContextTable&) = delete;
-    FdContextTable& operator=(const FdContextTable&) = delete;
 
     /**
      * @brief 获取fd对应的FdContext（只读）

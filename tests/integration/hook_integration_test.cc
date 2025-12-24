@@ -7,7 +7,7 @@
 #include <gtest/gtest.h>
 #include "hook/hook.h"
 #include "io/io_scheduler.h"
-#include "io/fd_manager.h"
+#include "io/status_table.h"
 #include "runtime/fiber.h"
 #include "util/zcoroutine_logger.h"
 
@@ -115,7 +115,7 @@ TEST_F(HookIntegrationTest, NanosleepHook) {
 
 // ==================== Socket创建Hook测试 ====================
 
-// 测试4：socket hook - 自动注册到FdManager
+// 测试4：socket hook - 自动注册到 StatusTable
 TEST_F(HookIntegrationTest, SocketHookRegistration) {
     int sockfd = -1;
     
@@ -124,8 +124,8 @@ TEST_F(HookIntegrationTest, SocketHookRegistration) {
         sockfd = socket(AF_INET, SOCK_STREAM, 0);
         EXPECT_GT(sockfd, 0);
         
-        // 检查是否注册到FdManager
-        auto fd_ctx = FdManager::GetInstance()->get_ctx(sockfd);
+        // 检查是否注册到 StatusTable
+        auto fd_ctx = StatusTable::GetInstance()->get(sockfd);
         EXPECT_NE(fd_ctx, nullptr);
         EXPECT_TRUE(fd_ctx->is_socket());
         EXPECT_TRUE(fd_ctx->get_sys_nonblock());  // 应该被设为非阻塞
@@ -171,7 +171,7 @@ TEST_F(HookIntegrationTest, AcceptHookRegistration) {
         
         if (fd > 0) {
             // 检查新fd是否注册
-            auto fd_ctx = FdManager::GetInstance()->get_ctx(fd);
+            auto fd_ctx = StatusTable::GetInstance()->get(fd);
             EXPECT_NE(fd_ctx, nullptr);
             EXPECT_TRUE(fd_ctx->is_socket());
             close(fd);
@@ -296,11 +296,11 @@ TEST_F(HookIntegrationTest, RecvSendHook) {
 
 // 测试9：fcntl F_SETFL - 用户非阻塞设置
 TEST_F(HookIntegrationTest, FcntlSetNonblock) {
-    set_hook_enable(true);  // 必须启用hook才能注册fd到FdManager
+    set_hook_enable(true);  // 必须启用hook才能注册fd到 StatusTable
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_GT(sockfd, 0);
     
-    auto fd_ctx = FdManager::GetInstance()->get_ctx(sockfd);
+    auto fd_ctx = StatusTable::GetInstance()->get(sockfd);
     ASSERT_NE(fd_ctx, nullptr);
     
     // 初始状态：系统非阻塞，用户视角阻塞
@@ -324,7 +324,7 @@ TEST_F(HookIntegrationTest, FcntlSetNonblock) {
 
 // 测试10：fcntl F_GETFL - 返回用户视角状态
 TEST_F(HookIntegrationTest, FcntlGetFlags) {
-    set_hook_enable(true);  // 必须启用hook才能注册fd到FdManager
+    set_hook_enable(true);  // 必须启用hook才能注册fd到 StatusTable
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_GT(sockfd, 0);
     
@@ -374,7 +374,7 @@ TEST_F(HookIntegrationTest, IoctlFIONBIO) {
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_GT(sockfd, 0);
     
-    auto fd_ctx = FdManager::GetInstance()->get_ctx(sockfd);
+    auto fd_ctx = StatusTable::GetInstance()->get(sockfd);
     EXPECT_FALSE(fd_ctx->get_user_nonblock());
     
     // 使用ioctl设置非阻塞
@@ -407,7 +407,7 @@ TEST_F(HookIntegrationTest, SetsockoptRcvTimeout) {
     tv.tv_usec = 200000;  // 200ms
     setsockopt(socks[0], SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
     
-    auto fd_ctx = FdManager::GetInstance()->get_ctx(socks[0]);
+    auto fd_ctx = StatusTable::GetInstance()->get(socks[0]);
     EXPECT_EQ(fd_ctx->get_timeout(SO_RCVTIMEO), 200);
     
     close(socks[0]);
@@ -471,7 +471,7 @@ TEST_F(HookIntegrationTest, SetsockoptSndTimeout) {
     tv.tv_usec = 300000;  // 300ms
     setsockopt(socks[0], SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
     
-    auto fd_ctx = FdManager::GetInstance()->get_ctx(socks[0]);
+    auto fd_ctx = StatusTable::GetInstance()->get(socks[0]);
     EXPECT_EQ(fd_ctx->get_timeout(SO_SNDTIMEO), 300);
     
     close(socks[0]);
@@ -521,20 +521,20 @@ TEST_F(HookIntegrationTest, CloseCanelsIoEvents) {
     close(socks[1]);
 }
 
-// 测试17：close后FdCtx被删除
-TEST_F(HookIntegrationTest, CloseDeletesFdCtx) {
+// 测试17：close后 SocketStatus 被删除
+TEST_F(HookIntegrationTest, CloseDeletesSocketFdContext) {
     set_hook_enable(true);
 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_GT(sockfd, 0);
     
-    auto fd_ctx = FdManager::GetInstance()->get_ctx(sockfd);
+    auto fd_ctx = StatusTable::GetInstance()->get(sockfd);
     EXPECT_NE(fd_ctx, nullptr);
     
     close(sockfd);
     
-    // close后FdCtx应该被删除
-    fd_ctx = FdManager::GetInstance()->get_ctx(sockfd);
+    // close后 SocketStatus 应该被删除
+    fd_ctx = StatusTable::GetInstance()->get(sockfd);
     EXPECT_EQ(fd_ctx, nullptr);
 }
 
@@ -584,9 +584,9 @@ TEST_F(HookIntegrationTest, HookEnableDisable) {
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_GT(sockfd, 0);
     
-    // 应该不会注册到FdManager
-    auto fd_ctx = FdManager::GetInstance()->get_ctx(sockfd);
-    // 注意：socket可能还是会创建FdCtx，但不会自动设置非阻塞
+    // 应该不会注册到 StatusTable
+    auto fd_ctx = StatusTable::GetInstance()->get(sockfd);
+    // 注意：socket可能还是会创建 SocketStatus，但不会自动设置非阻塞
     
     close(sockfd);
     
@@ -596,7 +596,7 @@ TEST_F(HookIntegrationTest, HookEnableDisable) {
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     ASSERT_GT(sockfd, 0);
     
-    fd_ctx = FdManager::GetInstance()->get_ctx(sockfd);
+    fd_ctx = StatusTable::GetInstance()->get(sockfd);
     EXPECT_NE(fd_ctx, nullptr);
     EXPECT_TRUE(fd_ctx->get_sys_nonblock());
     
@@ -718,8 +718,8 @@ TEST_F(HookIntegrationTest, NonSocketFdNotHooked) {
         GTEST_SKIP() << "Cannot open /dev/null";
     }
     
-    // 普通文件fd不应该有FdCtx，或者有但is_socket为false
-    auto fd_ctx = FdManager::GetInstance()->get_ctx(fd);
+    // 普通文件fd不应该有 SocketStatus，或者有但is_socket为false
+    auto fd_ctx = StatusTable::GetInstance()->get(fd);
     if (fd_ctx) {
         EXPECT_FALSE(fd_ctx->is_socket());
     }
