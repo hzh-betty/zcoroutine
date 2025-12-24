@@ -7,12 +7,21 @@
 namespace zcoroutine
 {
 
-    Scheduler::Scheduler(int thread_count, std::string name)
+    Scheduler::Scheduler(int thread_count, std::string name, bool use_shared_stack)
         : name_(std::move(name)), thread_count_(thread_count), task_queue_(std::make_unique<TaskQueue>()),
-        stopping_(true), active_thread_count_(0), idle_thread_count_(0)
+        stopping_(true), active_thread_count_(0), idle_thread_count_(0),
+        use_shared_stack_(use_shared_stack)
     {
+        // 如果使用共享栈模式，创建共享栈
+        if (use_shared_stack_)
+        {
+            shared_stack_ = std::make_shared<SharedStack>();
+            ZCOROUTINE_LOG_INFO("Scheduler[{}] using shared stack mode with {} buffers",
+                                name_, shared_stack_->count());
+        }
 
-        ZCOROUTINE_LOG_INFO("Scheduler[{}] created with thread_count={}", name_, thread_count_);
+        ZCOROUTINE_LOG_INFO("Scheduler[{}] created with thread_count={}, shared_stack={}", 
+                            name_, thread_count_, use_shared_stack_);
     }
 
     Scheduler::~Scheduler()
@@ -120,6 +129,13 @@ namespace zcoroutine
     {
         ZCOROUTINE_LOG_DEBUG("Scheduler[{}] worker thread entering run loop", name_);
 
+        // 如果使用共享栈模式，设置线程本地的栈模式和共享栈
+        if (use_shared_stack_ && shared_stack_)
+        {
+            ThreadContext::set_stack_mode(StackMode::kShared);
+            ThreadContext::set_shared_stack(shared_stack_);
+        }
+
         // 创建主协程（保存线程的原始上下文）
         Fiber main_fiber_obj; // 使用私有构造函数创建主协程
         ThreadContext::set_main_fiber(&main_fiber_obj);
@@ -155,6 +171,12 @@ namespace zcoroutine
         ThreadContext::set_scheduler_fiber(nullptr);
         ThreadContext::set_main_fiber(nullptr);
         ThreadContext::set_current_fiber(nullptr);
+        
+        // 如果使用了共享栈模式，重置线程本地配置
+        if (use_shared_stack_)
+        {
+            ThreadContext::reset_shared_stack_config();
+        }
 
         ZCOROUTINE_LOG_DEBUG("Scheduler[{}] worker thread exiting run loop", name_);
     }

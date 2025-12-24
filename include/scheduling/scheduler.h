@@ -28,8 +28,11 @@ public:
      * @brief 构造函数
      * @param thread_count 线程数量
      * @param name 调度器名称
+     * @param use_shared_stack 是否使用共享栈模式
      */
-    explicit Scheduler(int thread_count = 1, std::string  name = "Scheduler");
+    explicit Scheduler(int thread_count = 1, 
+                       std::string name = "Scheduler",
+                       bool use_shared_stack = false);
 
     /**
      * @brief 析构函数
@@ -96,6 +99,18 @@ public:
      */
     static void set_this(Scheduler* scheduler);
 
+    /**
+     * @brief 检查是否使用共享栈模式
+     * @return true表示使用共享栈，false表示使用独立栈
+     */
+    bool is_shared_stack() const { return use_shared_stack_; }
+
+    /**
+     * @brief 获取共享栈指针（仅当共享栈模式时有效）
+     * @return 共享栈指针
+     */
+    SharedStack::ptr get_shared_stack() const { return shared_stack_; }
+
 protected:
     /**
      * @brief 工作线程主循环
@@ -117,6 +132,10 @@ protected:
     std::atomic<bool> stopping_;                    // 停止标志
     std::atomic<int> active_thread_count_;          // 活跃线程数
     std::atomic<int> idle_thread_count_;            // 空闲线程数
+
+    // 共享栈相关
+    bool use_shared_stack_ = false;                 // 是否使用共享栈模式
+    SharedStack::ptr shared_stack_ = nullptr;       // 共享栈（仅当use_shared_stack_为true时有效）
 };
 
 } // namespace zcoroutine
