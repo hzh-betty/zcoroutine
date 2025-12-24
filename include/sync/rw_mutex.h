@@ -41,7 +41,7 @@ public:
 
 private:
     T& rwmutex_;                    // 读写锁对象
-    std::atomic<bool> locked_;      // 锁定状态
+    bool locked_;      // 锁定状态
 };
 
 /**
@@ -75,7 +75,7 @@ public:
 
 private:
     T& rwmutex_;                    // 读写锁对象
-    std::atomic<bool> locked_;      // 锁定状态
+    bool locked_;      // 锁定状态
 };
 
 /**

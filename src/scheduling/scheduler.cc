@@ -24,7 +24,7 @@ namespace zcoroutine
 
     void Scheduler::start()
     {
-        stopping_.store(false, std::memory_order_relaxed);
+        stopping_ = false;
 
         if (!threads_.empty())
         {
@@ -66,12 +66,12 @@ namespace zcoroutine
 
         // 等待所有任务处理完成
         while (!task_queue_->empty()) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
         ZCOROUTINE_LOG_INFO("Scheduler[{}] all tasks completed, stopping task queue", name_);
 
-        stopping_.store(true, std::memory_order_relaxed);
+        stopping_ = true;
 
         // 停止任务队列，唤醒所有等待的线程
         task_queue_->stop();
@@ -163,8 +163,11 @@ namespace zcoroutine
     {
         ZCOROUTINE_LOG_DEBUG("Scheduler[{}] schedule_loop starting", name_);
 
-        while (!stopping_.load(std::memory_order_relaxed))
+        while (true)
         {
+            // 如果正在停止且任务队列为空，则退出循环
+            if(stopping_ && task_queue_->empty()) break;
+
             Task task;
 
             // 从队列中取出任务（阻塞等待）
@@ -208,20 +211,20 @@ namespace zcoroutine
                                          name_, fiber->name(), fiber->id());
                 }
 
-                // 如果协程仍然可运行，重新调度
-                if (fiber->state() == Fiber::State::kSuspended)
-                {
-                    ZCOROUTINE_LOG_DEBUG("Scheduler[{}] fiber yielded, rescheduling: name={}, id={}",
-                                         name_, fiber->name(), fiber->id());
-                    schedule(fiber);
-                }
                 // 如果协程终止，归还到池中
-                else if (fiber->state() == Fiber::State::kTerminated)
+                if (fiber->state() == Fiber::State::kTerminated)
                 {
                     ZCOROUTINE_LOG_DEBUG("Scheduler[{}] fiber terminated: name={}, id={}",
                                          name_, fiber->name(), fiber->id());
                     // 归还协程到池中
                     FiberPool::GetInstance()->release(fiber);
+                }
+                // 如果协程挂起，说明在等待外部事件（IO、定时器等）
+                // 不自动重新调度，由事件触发时显式调度
+                else if (fiber->state() == Fiber::State::kSuspended)
+                {
+                    ZCOROUTINE_LOG_DEBUG("Scheduler[{}] fiber suspended, waiting for external event: name={}, id={}",
+                                         name_, fiber->name(), fiber->id());
                 }
             }
             else if (task.callback)

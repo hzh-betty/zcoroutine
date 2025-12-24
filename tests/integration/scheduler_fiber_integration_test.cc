@@ -137,7 +137,16 @@ TEST_F(SchedulerFiberIntegrationTest, FiberWithYield) {
     });
     
     scheduler_->schedule(fiber);
-    
+
+    while (step.load() != 1) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    scheduler_->schedule(fiber);
+
+    while (step.load() != 2) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+    scheduler_->schedule(fiber);
     // 等待协程完成所有步骤
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     EXPECT_EQ(step.load(), 3);

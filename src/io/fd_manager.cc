@@ -50,6 +50,7 @@ bool FdCtx::init() {
                 ::fcntl(fd_, F_SETFL, newf);
             }
         }
+        // 保证socket套接字一定是非阻塞的
         sys_nonblock_ = true;
     } else {
         sys_nonblock_ = false;
@@ -76,7 +77,7 @@ FdManager::FdManager() {
     ZCOROUTINE_LOG_DEBUG("FdManager initialized with capacity={}", fd_datas_.size());
 }
 
-FdCtx::ptr FdManager::get_ctx(int fd, const bool auto_create) {
+FdCtx::ptr FdManager::get_ctx(int fd, bool auto_create) {
     if (fd < 0) {
         return nullptr;
     }

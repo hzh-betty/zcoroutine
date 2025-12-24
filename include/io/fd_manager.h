@@ -9,7 +9,7 @@ namespace zcoroutine {
 
     /**
      * @brief 文件描述符上下文
-     * 管理单个文件描述符的状态和属性
+     * 管理单个文件描述符的状态和属性，负责用于hook
      */
     class FdCtx
     {

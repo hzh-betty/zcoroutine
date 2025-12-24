@@ -33,6 +33,7 @@ void hook_init() {
     XX(usleep)
     XX(nanosleep)
     XX(socket)
+    XX(socketpair)
     XX(connect)
     XX(accept)
     XX(read)
@@ -69,6 +70,7 @@ sleep_func sleep_f = nullptr;
 usleep_func usleep_f = nullptr;
 nanosleep_func nanosleep_f = nullptr;
 socket_func socket_f = nullptr;
+socketpair_func socketpair_f = nullptr;
 connect_func connect_f = nullptr;
 accept_func accept_f = nullptr;
 read_func read_f = nullptr;
@@ -221,8 +223,10 @@ unsigned int sleep(unsigned int seconds) {
     }
 
     // 使用定时器和协程实现非阻塞sleep
-    iom->add_timer(seconds * 1000, [iom, cur_fiber]() {
-        iom->schedule(cur_fiber->shared_from_this());
+    // 必须在yield之前捕获shared_ptr，保持协程存活直到定时器触发
+    auto fiber_ptr = cur_fiber->shared_from_this();
+    iom->add_timer(seconds * 1000, [iom, fiber_ptr]() {
+        iom->schedule(fiber_ptr);
     });
     zcoroutine::Fiber::yield();
 
@@ -244,8 +248,10 @@ int usleep(useconds_t usec) {
         return usleep_f(usec);
     }
 
-    iom->add_timer(usec / 1000, [iom, cur_fiber]() {
-        iom->schedule(cur_fiber->shared_from_this());
+    // 必须在yield之前捕获shared_ptr，保持协程存活直到定时器触发
+    auto fiber_ptr = cur_fiber->shared_from_this();
+    iom->add_timer(usec / 1000, [iom, fiber_ptr]() {
+        iom->schedule(fiber_ptr);
     });
     zcoroutine::Fiber::yield();
 
@@ -268,8 +274,10 @@ int nanosleep(const struct timespec* req, struct timespec* rem) {
     }
 
     uint64_t timeout_ms = req->tv_sec * 1000 + req->tv_nsec / 1000000;
-    iom->add_timer(timeout_ms, [iom, cur_fiber]() {
-        iom->schedule(cur_fiber->shared_from_this());
+    // 必须在yield之前捕获shared_ptr，保持协程存活直到定时器触发
+    auto fiber_ptr = cur_fiber->shared_from_this();
+    iom->add_timer(timeout_ms, [iom, fiber_ptr]() {
+        iom->schedule(fiber_ptr);
     });
     zcoroutine::Fiber::yield();
 
@@ -294,6 +302,25 @@ int socket(int domain, int type, int protocol) {
 
     ZCOROUTINE_LOG_DEBUG("hook::socket fd={}", fd);
     return fd;
+}
+
+int socketpair(int domain, int type, int protocol, int sv[2]) {
+    if (!zcoroutine::is_hook_enabled()) {
+        return socketpair_f(domain, type, protocol, sv);
+    }
+
+    int ret = socketpair_f(domain, type, protocol, sv);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // 获取FdManager并注册两个fd
+    zcoroutine::FdManager::ptr fd_manager = zcoroutine::FdManager::GetInstance();
+    fd_manager->get_ctx(sv[0], true);  // auto_create = true
+    fd_manager->get_ctx(sv[1], true);  // auto_create = true
+
+    ZCOROUTINE_LOG_DEBUG("hook::socketpair sv[0]={}, sv[1]={}", sv[0], sv[1]);
+    return ret;
 }
 
 int connect_with_timeout(int fd, const struct sockaddr* addr, socklen_t addrlen, uint64_t timeout_ms) {

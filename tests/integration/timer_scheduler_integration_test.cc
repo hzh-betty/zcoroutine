@@ -180,7 +180,6 @@ TEST_F(TimerSchedulerIntegrationTest, TimerSchedulesFiberWithYield) {
         auto fiber = std::make_shared<Fiber>([&step]() {
             step.store(1);
             Fiber::yield();
-            step.store(2);
         });
         scheduler_->schedule(fiber);
     }, false);
@@ -194,8 +193,9 @@ TEST_F(TimerSchedulerIntegrationTest, TimerSchedulesFiberWithYield) {
         }
     }
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    EXPECT_EQ(step.load(), 2);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    EXPECT_EQ(step.load(), 1);
     
     scheduler_->stop();
 }

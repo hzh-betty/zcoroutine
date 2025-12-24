@@ -73,7 +73,7 @@ TEST_F(SchedulerTest, ScheduleFiber) {
     }
     
     scheduler.stop();
-    EXPECT_EQ(count.load(), 100); // 每个协程执行2次
+    EXPECT_EQ(count.load(), 50); // 每个协程执行1次
 }
 
 // 测试：并发调度

@@ -2,6 +2,7 @@
 #define ZCOROUTINE_TIMER_MANAGER_H_
 
 #include <set>
+#include <atomic>
 #include <mutex>
 #include <vector>
 #include <functional>
@@ -99,6 +100,7 @@ private:
         }
     };
 
+    std::atomic<bool> is_ticked_{false}; // 是否已经通知协程调度器
     std::set<Timer::ptr, TimerComparator> timers_;      // 定时器集合
     mutable std::mutex mutex_;                           // 互斥锁
     uint64_t last_time_ = 0;                             // 上次检测时间

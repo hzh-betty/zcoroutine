@@ -8,6 +8,11 @@
 #include <cstdint>
 
 namespace zcoroutine {
+/**
+ * @brief Hook功能
+ * 如果启用Hook功能，将会拦截socket相关的系统调用，然后进行协程调度
+ * 对于非socket文件描述符，Hook功能将不会拦截其系统调用
+ */
 
 /**
  * @brief 是否启用Hook
@@ -44,6 +49,9 @@ extern nanosleep_func nanosleep_f;
 // socket系列
 typedef int (*socket_func)(int domain, int type, int protocol);
 extern socket_func socket_f;
+
+typedef int (*socketpair_func)(int domain, int type, int protocol, int sv[2]);
+extern socketpair_func socketpair_f;
 
 typedef int (*connect_func)(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 extern connect_func connect_f;

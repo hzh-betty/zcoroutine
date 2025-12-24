@@ -48,6 +48,8 @@ void handle_client_fiber(int client_fd) {
 
         if (ret > 0) {
             ZCOROUTINE_LOG_DEBUG("Received {} bytes from fd={}", ret, client_fd);
+            // 模拟处理请求
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
             // 发送HTTP响应（hook会自动处理EAGAIN）
             int send_ret = send(client_fd, HTTP_RESPONSE, strlen(HTTP_RESPONSE), 0);
@@ -201,10 +203,7 @@ int main(int argc, char* argv[]) {
     io_scheduler->add_event(listen_fd, FdContext::kRead, accept_connection);
     
     // 主线程等待（服务器持续运行）
-    // 可以添加信号处理来优雅关闭
-    while (true) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
+    getchar();
     
     // 清理
     io_scheduler->stop();

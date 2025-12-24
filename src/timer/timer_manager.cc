@@ -47,6 +47,8 @@ namespace zcoroutine {
     }
 
     int TimerManager::get_next_timeout() {
+        is_ticked_ = false;
+
         std::lock_guard<std::mutex> lock(mutex_);
         ZCOROUTINE_LOG_DEBUG("TimerManager::get_next_timeout called");
 
@@ -104,7 +106,7 @@ namespace zcoroutine {
 
     void TimerManager::insert_timer(Timer::ptr timer) {
         bool at_front = false;
-
+        
         // 插入定时器到集合中
         {
             std::lock_guard<std::mutex> lock(mutex_);
@@ -114,7 +116,8 @@ namespace zcoroutine {
         }
 
         // 如果插入的定时器在最前面，调用回调通知
-        if (at_front && on_timer_inserted_callback_) {
+        if (at_front && !is_ticked_ && on_timer_inserted_callback_) {
+            is_ticked_ = true;
             on_timer_inserted_callback_();
             ZCOROUTINE_LOG_DEBUG("Timer inserted at front, callback notified");
         }

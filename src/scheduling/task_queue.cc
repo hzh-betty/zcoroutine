@@ -17,7 +17,7 @@ bool TaskQueue::pop(Task& task) {
         semaphore_.wait();
 
         // 检查停止标志
-        if (stopped_.load(std::memory_order_relaxed)) {
+        if (stopped_) {
             // 即使停止，也要处理完剩余任务
             SpinlockGuard lock(spinlock_);
             if (tasks_.empty()) {
@@ -49,7 +49,7 @@ bool TaskQueue::empty() const {
 }
 
 void TaskQueue::stop() {
-    stopped_.store(true, std::memory_order_relaxed);
+    stopped_ = true;
     // 唤醒所有等待的线程
     semaphore_.notify_all(1024);
 }
