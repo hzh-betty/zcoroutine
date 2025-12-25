@@ -1,0 +1,246 @@
+#include "runtime/shared_stack.h"
+#include "runtime/stack_allocator.h"
+#include "util/zcoroutine_logger.h"
+#include <cstring>
+
+namespace zcoroutine {
+
+// ============================================================================
+// SharedStackBuffer 实现
+// ============================================================================
+
+SharedStackBuffer::SharedStackBuffer(size_t stack_size)
+    : stack_size_(stack_size)
+{
+    // 使用StackAllocator分配栈内存
+    stack_buffer_ = static_cast<char*>(StackAllocator::allocate(stack_size_));
+    if (!stack_buffer_)
+    {
+        ZCOROUTINE_LOG_ERROR("SharedStackBuffer allocation failed: size={}", stack_size_);
+        return;
+    }
+
+    // 栈顶指针（栈从高地址向低地址增长）
+    stack_bp_ = stack_buffer_ + stack_size_;
+
+    ZCOROUTINE_LOG_DEBUG("SharedStackBuffer created: buffer={}, size={}, stack_top={}",
+                         static_cast<void*>(stack_buffer_), stack_size_,
+                         static_cast<void*>(stack_bp_));
+}
+
+SharedStackBuffer::~SharedStackBuffer()
+{
+    if (stack_buffer_)
+    {
+        ZCOROUTINE_LOG_DEBUG("SharedStackBuffer destroying: buffer={}",
+                             static_cast<void*>(stack_buffer_));
+        StackAllocator::deallocate(stack_buffer_, stack_size_);
+        stack_buffer_ = nullptr;
+        stack_bp_ = nullptr;
+    }
+}
+
+// ============================================================================
+// SharedStack 实现
+// ============================================================================
+
+// 静态常量成员定义
+constexpr size_t SharedStack::kDefaultStackSize;
+constexpr int SharedStack::kDefaultStackCount;
+
+SharedStack::SharedStack(int count, size_t stack_size)
+    : stack_size_(stack_size), count_(count)
+{
+    if (count <= 0)
+    {
+        count_ = kDefaultStackCount;
+        ZCOROUTINE_LOG_WARN("SharedStack invalid count {}, using default {}",
+                            count, kDefaultStackCount);
+    }
+
+    if (stack_size == 0)
+    {
+        stack_size_ = kDefaultStackSize;
+        ZCOROUTINE_LOG_WARN("SharedStack invalid stack_size 0, using default {}",
+                            kDefaultStackSize);
+    }
+
+    // 创建栈缓冲区数组
+    stack_array_.reserve(count_);
+    for (int i = 0; i < count_; ++i)
+    {
+        stack_array_.push_back(std::make_unique<SharedStackBuffer>(stack_size_));
+    }
+
+    ZCOROUTINE_LOG_INFO("SharedStack created: count={}, stack_size={}",
+                        count_, stack_size_);
+}
+
+SharedStackBuffer* SharedStack::allocate()
+{
+    if (stack_array_.empty())
+    {
+        ZCOROUTINE_LOG_ERROR("SharedStack::allocate failed: no stack buffers");
+        return nullptr;
+    }
+
+    // 轮询分配
+    unsigned int idx = alloc_idx_.fetch_add(1, std::memory_order_relaxed) % count_;
+
+    ZCOROUTINE_LOG_DEBUG("SharedStack::allocate: idx={}", idx);
+
+    return stack_array_[idx].get();
+}
+
+// ============================================================================
+// SwitchStack 实现
+// ============================================================================
+
+constexpr size_t SwitchStack::kDefaultSwitchStackSize;
+
+SwitchStack::SwitchStack(size_t stack_size)
+    : stack_size_(stack_size)
+{
+    // 使用StackAllocator分配栈内存
+    stack_buffer_ = static_cast<char*>(StackAllocator::allocate(stack_size_));
+    if (!stack_buffer_)
+    {
+        ZCOROUTINE_LOG_ERROR("SwitchStack allocation failed: size={}", stack_size_);
+        return;
+    }
+
+    // 栈顶指针（栈从高地址向低地址增长）
+    stack_bp_ = stack_buffer_ + stack_size_;
+
+    ZCOROUTINE_LOG_DEBUG("SwitchStack created: buffer={}, size={}, stack_top={}",
+                         static_cast<void*>(stack_buffer_), stack_size_,
+                         static_cast<void*>(stack_bp_));
+}
+
+SwitchStack::~SwitchStack()
+{
+    if (stack_buffer_)
+    {
+        ZCOROUTINE_LOG_DEBUG("SwitchStack destroying: buffer={}",
+                             static_cast<void*>(stack_buffer_));
+        StackAllocator::deallocate(stack_buffer_, stack_size_);
+        stack_buffer_ = nullptr;
+        stack_bp_ = nullptr;
+    }
+}
+
+// ============================================================================
+// FiberStackContext 实现
+// ============================================================================
+
+FiberStackContext::~FiberStackContext()
+{
+    if (save_buffer_)
+    {
+        StackAllocator::deallocate(save_buffer_, save_size_);
+        save_buffer_ = nullptr;
+        save_size_ = 0;
+    }
+}
+
+void FiberStackContext::init_shared(SharedStackBuffer* buffer)
+{
+    is_shared_stack_ = true;
+    shared_stack_buffer_ = buffer;
+}
+
+void FiberStackContext::save_stack_buffer(void* stack_sp)
+{
+    if (!is_shared_stack_ || !shared_stack_buffer_ || !stack_sp)
+    {
+        return;
+    }
+
+    // 计算需要保存的栈大小
+    // stack_top 是栈顶（高地址），stack_sp 是当前栈指针（低地址）
+    char* stack_top = shared_stack_buffer_->stack_top();
+    char* sp = static_cast<char*>(stack_sp);
+    
+    if (sp >= stack_top)
+    {
+        ZCOROUTINE_LOG_WARN("FiberStackContext::save_stack_buffer invalid stack_sp");
+        return;
+    }
+
+    size_t len = static_cast<size_t>(stack_top - sp);
+    if (len == 0)
+    {
+        return;
+    }
+
+    // 释放旧的保存缓冲区
+    if (save_buffer_)
+    {
+        StackAllocator::deallocate(save_buffer_, save_size_);
+        save_buffer_ = nullptr;
+    }
+
+    // 使用StackAllocator分配新的保存缓冲区
+    save_buffer_ = static_cast<char*>(StackAllocator::allocate(len));
+    if (!save_buffer_)
+    {
+        ZCOROUTINE_LOG_ERROR("FiberStackContext::save_stack_buffer allocation failed: size={}", len);
+        return;
+    }
+
+    save_size_ = len;
+    saved_stack_sp_ = stack_sp;  // 记录栈指针位置，用于恢复
+
+    // 复制栈内容
+    memcpy(save_buffer_, sp, len);
+
+    ZCOROUTINE_LOG_DEBUG("FiberStackContext::save_stack_buffer: size={}", save_size_);
+}
+
+void FiberStackContext::restore_stack_buffer()
+{
+    if (!is_shared_stack_ || !save_buffer_ || save_size_ == 0 || !saved_stack_sp_)
+    {
+        return;
+    }
+
+    // 验证 saved_stack_sp_ 是否在共享栈范围内
+    char* stack_base = shared_stack_buffer_->buffer();
+    char* stack_top = shared_stack_buffer_->stack_top();
+    char* sp = static_cast<char*>(saved_stack_sp_);
+    
+    if (sp < stack_base || sp >= stack_top)
+    {
+        ZCOROUTINE_LOG_ERROR("FiberStackContext::restore_stack_buffer invalid saved_stack_sp: sp={}, base={}, top={}",
+                            static_cast<void*>(sp), 
+                            static_cast<void*>(stack_base), static_cast<void*>(stack_top));
+        return;
+    }
+
+    // 恢复栈内容
+    memcpy(sp, save_buffer_, save_size_);
+
+    ZCOROUTINE_LOG_DEBUG("FiberStackContext::restore_stack_buffer: size={}", save_size_);
+}
+
+void FiberStackContext::reset()
+{
+    if (save_buffer_)
+    {
+        StackAllocator::deallocate(save_buffer_, save_size_);
+        save_buffer_ = nullptr;
+        save_size_ = 0;
+    }
+    saved_stack_sp_ = nullptr;
+}
+
+void FiberStackContext::clear_occupy(Fiber* owner)
+{
+    if (shared_stack_buffer_ && shared_stack_buffer_->occupy_fiber() == owner)
+    {
+        // 只有当owner是占用者时才清除
+        shared_stack_buffer_->set_occupy_fiber(nullptr);
+    }
+}
+
+} // namespace zcoroutine
