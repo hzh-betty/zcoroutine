@@ -9,6 +9,8 @@ namespace zcoroutine {
 class Fiber;
 class Scheduler;
 class SharedStack;
+class SwitchStack;
+class Context;
 
 // 栈模式枚举前向声明
 enum class StackMode;
@@ -110,28 +112,40 @@ public:
     static void reset_shared_stack_config();
 
     /**
-     * @brief 设置待切换的共享栈协程（用于共享栈切换时的栈恢复）
-     * @param fiber 待切换的协程
+     * @brief 获取当前线程的专用切换栈
+     * @return 切换栈指针，如果不存在则自动创建
+     */
+    static SwitchStack* get_switch_stack();
+
+    /**
+     * @brief 获取当前线程的切换上下文（运行在 switch stack 上）
+     * @return 切换上下文指针，如果不存在则自动创建
+     */
+    static Context* get_switch_context();
+
+    /**
+     * @brief 设置待切换的目标协程
+     * @param fiber 目标协程
      */
     static void set_pending_fiber(Fiber* fiber);
 
     /**
-     * @brief 获取待切换的共享栈协程
-     * @return 待切换的协程
+     * @brief 获取待切换的目标协程
+     * @return 目标协程
      */
     static Fiber* get_pending_fiber();
 
     /**
-     * @brief 设置当前占用共享栈的协程（用于共享栈切换时的栈保存）
-     * @param fiber 占用共享栈的协程
+     * @brief 设置Hook启用状态
+     * @param enable true表示启用，false表示禁用
      */
-    static void set_occupy_fiber(Fiber* fiber);
+    static void set_hook_enable(bool enable);
 
     /**
-     * @brief 获取当前占用共享栈的协程
-     * @return 占用共享栈的协程
+     * @brief 获取Hook启用状态
+     * @return true表示启用，false表示禁用
      */
-    static Fiber* get_occupy_fiber();
+    static bool is_hook_enabled();
 
 private:
     Fiber* main_fiber_ = nullptr;         // 主协程（线程入口协程）
@@ -142,8 +156,12 @@ private:
     // 共享栈相关
     StackMode stack_mode_;                // 当前线程的栈模式
     std::shared_ptr<SharedStack> shared_stack_ = nullptr;  // 当前线程的共享栈
-    Fiber* pending_fiber_ = nullptr;      // 待切换的共享栈协程
-    Fiber* occupy_fiber_ = nullptr;       // 当前占用共享栈的协程
+    std::unique_ptr<SwitchStack> switch_stack_ = nullptr;  // 专用切换栈
+    std::unique_ptr<Context> switch_context_ = nullptr;    // 切换上下文（运行在 switch_stack_ 上）
+    Fiber* pending_fiber_ = nullptr;      // 待切换的目标协程
+    
+    // Hook相关
+    bool hook_enable_ = false;            // Hook启用标志
 };
 
 } // namespace zcoroutine

@@ -8,93 +8,6 @@ namespace zcoroutine
 {
 
     // ============================================================================
-    // SharedStackBuffer 实现
-    // ============================================================================
-
-    SharedStackBuffer::SharedStackBuffer(size_t stack_size)
-        : stack_size_(stack_size)
-    {
-        // 使用StackAllocator分配栈内存
-        stack_buffer_ = static_cast<char*>(StackAllocator::allocate(stack_size_));
-        if (!stack_buffer_)
-        {
-            ZCOROUTINE_LOG_ERROR("SharedStackBuffer allocation failed: size={}", stack_size_);
-            return;
-        }
-
-        // 栈顶指针（栈从高地址向低地址增长）
-        stack_bp_ = stack_buffer_ + stack_size_;
-
-        ZCOROUTINE_LOG_DEBUG("SharedStackBuffer created: buffer={}, size={}, stack_top={}",
-                             static_cast<void*>(stack_buffer_), stack_size_,
-                             static_cast<void*>(stack_bp_));
-    }
-
-    SharedStackBuffer::~SharedStackBuffer()
-    {
-        if (stack_buffer_)
-        {
-            ZCOROUTINE_LOG_DEBUG("SharedStackBuffer destroying: buffer={}",
-                                 static_cast<void*>(stack_buffer_));
-            StackAllocator::deallocate(stack_buffer_, stack_size_);
-            stack_buffer_ = nullptr;
-            stack_bp_ = nullptr;
-        }
-    }
-
-    // ============================================================================
-    // SharedStack 实现
-    // ============================================================================
-
-    // 静态常量成员定义
-    constexpr size_t SharedStack::kDefaultStackSize;
-    constexpr int SharedStack::kDefaultStackCount;
-
-    SharedStack::SharedStack(int count, size_t stack_size)
-        : stack_size_(stack_size), count_(count)
-    {
-        if (count <= 0)
-        {
-            count_ = kDefaultStackCount;
-            ZCOROUTINE_LOG_WARN("SharedStack invalid count {}, using default {}",
-                                count, kDefaultStackCount);
-        }
-
-        if (stack_size == 0)
-        {
-            stack_size_ = kDefaultStackSize;
-            ZCOROUTINE_LOG_WARN("SharedStack invalid stack_size 0, using default {}",
-                                kDefaultStackSize);
-        }
-
-        // 创建栈缓冲区数组
-        stack_array_.reserve(count_);
-        for (int i = 0; i < count_; ++i)
-        {
-            stack_array_.push_back(std::make_unique<SharedStackBuffer>(stack_size_));
-        }
-
-        ZCOROUTINE_LOG_INFO("SharedStack created: count={}, stack_size={}",
-                            count_, stack_size_);
-    }
-
-    SharedStackBuffer* SharedStack::allocate()
-    {
-        if (stack_array_.empty())
-        {
-            ZCOROUTINE_LOG_ERROR("SharedStack::allocate failed: no stack buffers");
-            return nullptr;
-        }
-
-        // 轮询分配
-        unsigned int idx = alloc_idx_.fetch_add(1, std::memory_order_relaxed) % count_;
-
-        ZCOROUTINE_LOG_DEBUG("SharedStack::allocate: idx={}", idx);
-
-        return stack_array_[idx].get();
-    }
-
-    // ============================================================================
     // Fiber 实现
     // ============================================================================
 
@@ -103,7 +16,7 @@ namespace zcoroutine
 
     // 主协程构造函数
     Fiber::Fiber()
-        : name_("main_fiber"), id_(0), state_(State::kRunning), stack_size_(0), context_(std::make_unique<Context>())
+        : name_("main_fiber"), id_(0), state_(State::kRunning), stack_size_(0), context_(std::make_unique<Context>()), stack_ctx_(std::make_unique<FiberStackContext>())
     {
 
         // 主协程直接获取当前上下文
@@ -118,8 +31,6 @@ namespace zcoroutine
     // 确定切换目标：
     // - 如果当前不是scheduler_fiber，切换回scheduler_fiber
     // - 如果当前是scheduler_fiber或没有scheduler_fiber，切换回main_fiber
-    // 注意：禁用栈保护，因为共享栈协程可能从这里恢复
-    __attribute__((no_stack_protector))
     void Fiber::confirm_switch_target()
     {
         Fiber *scheduler_fiber = ThreadContext::get_scheduler_fiber();
@@ -148,72 +59,47 @@ namespace zcoroutine
         }
     }
 
-    // 统一的协程切换函数（类似libco的co_swap）
-    // 关键：必须在swap_context之前恢复目标协程的栈内容
-    // 因为swapcontext恢复寄存器后会从栈上读取返回地址
-    // 注意：禁用栈保护，因为栈内容会被保存和恢复，canary值会变化
-    __attribute__((no_stack_protector, noinline))
-    void Fiber::co_swap(Fiber* curr, Fiber* pending)
+    // 统一的协程切换函数
+    // 对于共享栈协程，先切换到专用 switch stack，然后执行栈保存/恢复操作
+    // 整个过程不使用任何 magic number，完全 ABI 安全
+    void Fiber::co_swap(Fiber* curr, Fiber* target)
     {
-        // 使用内联汇编获取当前栈指针，确保捕获到足够低的地址
-        // 需要保存到比swapcontext调用更低的地址，以确保包含所有栈帧
-        char* current_sp;
-#if defined(__x86_64__)
-        __asm__ volatile("movq %%rsp, %0" : "=r"(current_sp));
-#elif defined(__i386__)
-        __asm__ volatile("movl %%esp, %0" : "=r"(current_sp));
-#else
-        // 其他架构使用局部变量估算
-        char c;
-        current_sp = &c;
-#endif
-        // 预留一些空间给swapcontext和swap_context的栈帧
-        // swapcontext大约需要200-300字节的栈空间
-        curr->stack_sp_ = current_sp - 512;
-
-        // 共享栈切换处理
-        if (pending->is_shared_stack_ && pending->shared_stack_buffer_)
+        bool needs_switch_stack = curr->stack_ctx_ && curr->stack_ctx_->is_shared_stack() || 
+                                  target->stack_ctx_ && target->stack_ctx_->is_shared_stack();
+        
+        if (needs_switch_stack)
         {
-            // 获取当前占用此共享栈的协程
-            Fiber* occupy_fiber = pending->shared_stack_buffer_->occupy_fiber();
-
-            // 设置目标协程占用此共享栈
-            pending->shared_stack_buffer_->set_occupy_fiber(pending);
-
-            // 如果有其他协程占用且不是目标协程，保存其栈内容
-            if (occupy_fiber && occupy_fiber != pending)
+            // 设置待切换的目标协程
+            ThreadContext::set_pending_fiber(target);
+            
+            // 获取切换上下文（运行在 switch stack 上）
+            Context* switch_ctx = ThreadContext::get_switch_context();
+            if (!switch_ctx)
             {
-                occupy_fiber->save_stack_buffer();
+                ZCOROUTINE_LOG_ERROR("co_swap: switch context not available");
+                return;
             }
-
-            // 关键：在swap_context之前恢复目标协程的栈内容
-            // 这样swapcontext切换后栈上的数据（包括返回地址）才是正确的
-            // 只有当当前协程不在同一共享栈上时才安全执行恢复
-            // （因为恢复会覆盖共享栈内容）
-            if (pending->save_buffer_ && pending->save_size_ > 0)
-            {
-                // 检查当前协程是否在同一共享栈上
-                bool curr_on_same_stack = curr->is_shared_stack_ && 
-                                          curr->shared_stack_buffer_ == pending->shared_stack_buffer_;
-                if (!curr_on_same_stack)
-                {
-                    // 安全：当前协程不在此共享栈上，可以恢复
-                    memcpy(pending->stack_sp_, pending->save_buffer_, pending->save_size_);
-                    ZCOROUTINE_LOG_DEBUG("co_swap restore before swap: pending={}, size={}",
-                                        pending->name(), pending->save_size_);
-                }
-                // 如果在同一栈上，后面的恢复逻辑会处理（但这种情况不应该发生）
-            }
+            
+            ZCOROUTINE_LOG_DEBUG("co_swap: switching via switch_context, curr={}, target={}",
+                                curr->name(), target->name());
+            
+            // 切换到 switch_context
+            // switch_func 会在 switch stack 上执行，完成以下工作：
+            // 1. 从 curr 的 context 中获取 rsp（由 swapcontext 保存）
+            // 2. 保存 curr 的栈内容（如果是共享栈）
+            // 3. 恢复 target 的栈内容（如果是共享栈）
+            // 4. 切换到 target
+            Context::swap_context(curr->context_.get(), switch_ctx);
+            
+            // 当从 target 切换回来时（通过 switch_context 中转），执行继续
+            ZCOROUTINE_LOG_DEBUG("co_swap: returned from switch, curr={}", curr->name());
         }
-
-        set_this(pending);
-
-        // 切换上下文
-        Context::swap_context(curr->context_.get(), pending->context_.get());
-
-        // swap_context返回后，我们回到了这个协程
-        // 此时可能需要处理从共享栈协程切换回来的情况
-        // 但由于我们在swap前已经恢复了栈内容，这里通常不需要额外处理
+        else
+        {
+            // 纯独立栈切换，直接使用 swap_context
+            set_this(target);
+            Context::swap_context(curr->context_.get(), target->context_.get());
+        }
     }
 
     // 普通协程构造函数
@@ -221,7 +107,7 @@ namespace zcoroutine
                  size_t stack_size,
                  const std::string &name,
                  bool use_shared_stack)
-        : stack_size_(stack_size), context_(std::make_unique<Context>()), callback_(std::move(func))
+        : stack_size_(stack_size), context_(std::make_unique<Context>()), callback_(std::move(func)), stack_ctx_(std::make_unique<FiberStackContext>())
     {
         // 检查全局配置或显式指定使用共享栈
         bool should_use_shared = use_shared_stack ||
@@ -246,7 +132,6 @@ namespace zcoroutine
         if (should_use_shared)
         {
             // 共享栈模式
-            is_shared_stack_ = true;
             SharedStack* shared_stack = ThreadContext::get_shared_stack();
             if (!shared_stack)
             {
@@ -255,16 +140,17 @@ namespace zcoroutine
                 abort();
             }
 
-            shared_stack_buffer_ = shared_stack->allocate();
-            if (!shared_stack_buffer_)
+            SharedStackBuffer* buffer = shared_stack->allocate();
+            if (!buffer)
             {
                 ZCOROUTINE_LOG_FATAL("Fiber shared stack buffer allocation failed: name={}, id={}",
                                      name_, id_);
                 abort();
             }
 
+            stack_ctx_->init_shared(buffer);
             stack_size_ = shared_stack->stack_size();
-            stack_ptr_ = shared_stack_buffer_->buffer();
+            stack_ptr_ = buffer->buffer();
 
             ZCOROUTINE_LOG_DEBUG("Fiber using shared stack: name={}, id={}, buffer={}, size={}",
                                  name_, id_, static_cast<void*>(stack_ptr_), stack_size_);
@@ -272,7 +158,6 @@ namespace zcoroutine
         else
         {
             // 独立栈模式
-            is_shared_stack_ = false;
             stack_ptr_ = StackAllocator::allocate(stack_size_);
             if (!stack_ptr_)
             {
@@ -288,14 +173,14 @@ namespace zcoroutine
         context_->make_context(stack_ptr_, stack_size_, Fiber::main_func);
 
         ZCOROUTINE_LOG_INFO("Fiber created: name={}, id={}, is_shared_stack={}", 
-                            name_, id_, is_shared_stack_);
+                            name_, id_, stack_ctx_->is_shared_stack());
     }
 
     // 使用指定共享栈的构造函数
     Fiber::Fiber(std::function<void()> func,
                  SharedStack* shared_stack,
                  const std::string &name)
-        : context_(std::make_unique<Context>()), callback_(std::move(func)), is_shared_stack_(true)
+        : context_(std::make_unique<Context>()), callback_(std::move(func)), stack_ctx_(std::make_unique<FiberStackContext>())
     {
         // 分配全局唯一ID
         id_ = s_fiber_count_.fetch_add(1, std::memory_order_relaxed);
@@ -317,16 +202,17 @@ namespace zcoroutine
             abort();
         }
 
-        shared_stack_buffer_ = shared_stack->allocate();
-        if (!shared_stack_buffer_)
+        SharedStackBuffer* buffer = shared_stack->allocate();
+        if (!buffer)
         {
             ZCOROUTINE_LOG_FATAL("Fiber shared stack buffer allocation failed: name={}, id={}",
                                  name_, id_);
             abort();
         }
 
+        stack_ctx_->init_shared(buffer);
         stack_size_ = shared_stack->stack_size();
-        stack_ptr_ = shared_stack_buffer_->buffer();
+        stack_ptr_ = buffer->buffer();
 
         ZCOROUTINE_LOG_DEBUG("Fiber creating with explicit shared stack: name={}, id={}, buffer={}, size={}",
                              name_, id_, static_cast<void*>(stack_ptr_), stack_size_);
@@ -340,22 +226,12 @@ namespace zcoroutine
     Fiber::~Fiber()
     {
         ZCOROUTINE_LOG_DEBUG("Fiber destroying: name={}, id={}, state={}, is_shared_stack={}",
-                             name_, id_, static_cast<int>(state_), is_shared_stack_);
+                             name_, id_, static_cast<int>(state_), stack_ctx_->is_shared_stack());
 
-        if (is_shared_stack_)
+        if (stack_ctx_->is_shared_stack())
         {
-            // 共享栈模式：释放保存的栈内容（使用StackAllocator）
-            if (save_buffer_)
-            {
-                StackAllocator::deallocate(save_buffer_, save_size_);
-                save_buffer_ = nullptr;
-                save_size_ = 0;
-            }
-            // 如果当前协程占用了共享栈，清除占用标记
-            if (shared_stack_buffer_ && shared_stack_buffer_->occupy_fiber() == this)
-            {
-                shared_stack_buffer_->set_occupy_fiber(nullptr);
-            }
+            // 共享栈模式：清理栈上下文
+            stack_ctx_->clear_occupy(this);
         }
         else
         {
@@ -440,19 +316,9 @@ namespace zcoroutine
         exception_ = nullptr;
 
         // 共享栈模式：清理保存的栈内容
-        if (is_shared_stack_)
+        if (stack_ctx_->is_shared_stack())
         {
-            if (save_buffer_)
-            {
-                StackAllocator::deallocate(save_buffer_, save_size_);
-                save_buffer_ = nullptr;
-                save_size_ = 0;
-            }
-            // 如果当前协程占用了共享栈，清除占用标记
-            if (shared_stack_buffer_ && shared_stack_buffer_->occupy_fiber() == this)
-            {
-                shared_stack_buffer_->set_occupy_fiber(nullptr);
-            }
+            stack_ctx_->reset();
         }
 
         // 重新创建上下文
@@ -500,13 +366,9 @@ namespace zcoroutine
 
         // 切换回调度器或主协程
         // 如果协程终止且使用共享栈，清除占用标记
-        if (cur_fiber->state_ == State::kTerminated && cur_fiber->is_shared_stack_)
+        if (cur_fiber->state_ == State::kTerminated && cur_fiber->stack_ctx_->is_shared_stack())
         {
-            if (cur_fiber->shared_stack_buffer_ && 
-                cur_fiber->shared_stack_buffer_->occupy_fiber() == cur_fiber)
-            {
-                cur_fiber->shared_stack_buffer_->set_occupy_fiber(nullptr);
-            }
+            cur_fiber->stack_ctx_->clear_occupy(cur_fiber);
         }
         cur_fiber->confirm_switch_target();
     }
@@ -519,81 +381,6 @@ namespace zcoroutine
     void Fiber::set_this(Fiber *fiber)
     {
         ThreadContext::set_current_fiber(fiber);
-    }
-
-    __attribute__((no_stack_protector))
-    void Fiber::save_stack_buffer()
-    {
-        if (!is_shared_stack_ || !shared_stack_buffer_)
-        {
-            return;
-        }
-
-        // 计算需要保存的栈大小
-        // stack_bp_是栈顶（高地址），stack_sp_是当前栈指针（低地址）
-        char* stack_bp = shared_stack_buffer_->stack_top();
-        if (!stack_sp_ || stack_sp_ >= stack_bp)
-        {
-            ZCOROUTINE_LOG_WARN("Fiber::save_stack_buffer invalid stack_sp: name={}, id={}",
-                               name_, id_);
-            return;
-        }
-
-        size_t len = static_cast<size_t>(stack_bp - stack_sp_);
-        if (len == 0)
-        {
-            return;
-        }
-
-        // 释放旧的保存缓冲区
-        if (save_buffer_)
-        {
-            StackAllocator::deallocate(save_buffer_, save_size_);
-            save_buffer_ = nullptr;
-        }
-
-        // 使用StackAllocator分配新的保存缓冲区
-        save_buffer_ = static_cast<char*>(StackAllocator::allocate(len));
-        if (!save_buffer_)
-        {
-            ZCOROUTINE_LOG_ERROR("Fiber::save_stack_buffer allocation failed: name={}, id={}, size={}",
-                                name_, id_, len);
-            return;
-        }
-
-        save_size_ = len;
-
-        // 复制栈内容
-        memcpy(save_buffer_, stack_sp_, len);
-
-        ZCOROUTINE_LOG_DEBUG("Fiber::save_stack_buffer: name={}, id={}, size={}",
-                            name_, id_, save_size_);
-    }
-
-    __attribute__((no_stack_protector))
-    void Fiber::restore_stack_buffer()
-    {
-        if (!is_shared_stack_ || !save_buffer_ || save_size_ == 0)
-        {
-            return;
-        }
-
-        // 验证stack_sp_是否在共享栈范围内
-        char* stack_base = shared_stack_buffer_->buffer();
-        char* stack_top = shared_stack_buffer_->stack_top();
-        if (stack_sp_ < stack_base || stack_sp_ >= stack_top)
-        {
-            ZCOROUTINE_LOG_ERROR("Fiber::restore_stack_buffer invalid stack_sp: name={}, id={}, stack_sp={}, base={}, top={}",
-                                name_, id_, static_cast<void*>(stack_sp_), 
-                                static_cast<void*>(stack_base), static_cast<void*>(stack_top));
-            return;
-        }
-
-        // 恢复栈内容
-        memcpy(stack_sp_, save_buffer_, save_size_);
-
-        ZCOROUTINE_LOG_DEBUG("Fiber::restore_stack_buffer: name={}, id={}, size={}",
-                            name_, id_, save_size_);
     }
 
 } // namespace zcoroutine

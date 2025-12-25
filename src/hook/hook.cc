@@ -1,5 +1,6 @@
 #include "hook/hook.h"
 #include "util/zcoroutine_logger.h"
+#include "util/thread_context.h"
 #include "io/io_scheduler.h"
 #include "io/status_table.h"
 #include "runtime/fiber.h"
@@ -11,15 +12,12 @@
 
 namespace zcoroutine {
 
-// 线程本地的Hook启用标志
-static thread_local bool t_hook_enable = false;
-
 bool is_hook_enabled() {
-    return t_hook_enable;
+    return ThreadContext::is_hook_enabled();
 }
 
 void set_hook_enable(bool enable) {
-    t_hook_enable = enable;
+    ThreadContext::set_hook_enable(enable);
 }
 
 void hook_init() {

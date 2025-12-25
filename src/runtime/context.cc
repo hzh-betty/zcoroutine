@@ -32,4 +32,16 @@ int Context::get_context() {
     return getcontext(&ctx_);
 }
 
+void* Context::get_stack_pointer() const {
+#if defined(__x86_64__)
+    // x86_64: rsp 在 gregs[REG_RSP]
+    return reinterpret_cast<void*>(ctx_.uc_mcontext.gregs[REG_RSP]);
+#elif defined(__aarch64__)
+    // ARM64: sp 在 mcontext 中
+    return reinterpret_cast<void*>(ctx_.uc_mcontext.sp);
+#else
+#error "Unsupported architecture for get_stack_pointer"
+#endif
+}
+
 } // namespace zcoroutine

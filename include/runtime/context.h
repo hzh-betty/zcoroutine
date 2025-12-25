@@ -2,6 +2,7 @@
 #define ZCOROUTINE_CONTEXT_H_
 
 #include <ucontext.h>
+#include <cstdint>
 
 namespace zcoroutine {
 
@@ -20,6 +21,7 @@ public:
      * @return ucontext_t指针
      */
     ucontext_t* get() { return &ctx_; }
+    const ucontext_t* get() const { return &ctx_; }
 
     /**
      * @brief 创建上下文
@@ -42,6 +44,13 @@ public:
      * @return 成功返回0，失败返回-1
      */
     int get_context();
+
+    /**
+     * @brief 从保存的上下文中获取栈指针(rsp/sp)
+     * @return 栈指针值
+     * @note 只有在swapcontext保存上下文后才有效
+     */
+    void* get_stack_pointer() const;
 
 private:
     ucontext_t ctx_{};    // 底层上下文结构
