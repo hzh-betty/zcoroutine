@@ -10,6 +10,7 @@ namespace zcoroutine {
 
 // 前向声明
 class Fiber;
+class Context;
 
 /**
  * @brief 栈模式枚举
@@ -178,6 +179,18 @@ public:
      */
     size_t size() const { return stack_size_; }
 
+    /**
+    * @brief 切换函数 - 运行在 switch stack 上
+    * 
+     * 这个函数在专用切换栈上执行，负责：
+    * 1. 从当前协程的 context 中获取 rsp（已由 swapcontext 保存）
+    * 2. 保存当前协程的栈内容（如果是共享栈）
+    * 3. 恢复目标协程的栈内容（如果是共享栈）
+    * 4. 切换到目标协程
+    * 
+    * 整个过程不使用任何 magic number，所有栈操作都在独立的 switch stack 上进行
+    */
+    static void switch_func();
 private:
     char* stack_buffer_ = nullptr;      // 栈缓冲区起始地址（低地址）
     char* stack_bp_ = nullptr;          // 栈顶地址（高地址，栈从高往低增长）
