@@ -7,7 +7,6 @@
 #include <gtest/gtest.h>
 #include "io/io_scheduler.h"
 #include "hook/hook.h"
-#include "runtime/fiber.h"
 #include "util/zcoroutine_logger.h"
 #include <sys/socket.h>
 #include <fcntl.h>

@@ -14,7 +14,7 @@ namespace zcoroutine {
         // 检查事件是否已存在
         if (events_ & event) {
             ZCOROUTINE_LOG_WARN("FdContext::add_event event already exists: fd={}, event={}, current_events={}",
-                                fd_, event, events_);
+                                fd_, event_to_string(event), events_);
             return events_;
         }
 
@@ -24,7 +24,7 @@ namespace zcoroutine {
         events_ = new_events;
 
         ZCOROUTINE_LOG_DEBUG("FdContext::add_event success: fd={}, event={}, old_events={}, new_events={}",
-                             fd_, event, old_events, new_events);
+                             fd_, event_to_string(event), old_events, new_events);
 
         return new_events;
     }
@@ -35,7 +35,7 @@ namespace zcoroutine {
         // 检查事件是否存在
         if (!(events_ & event)) {
             ZCOROUTINE_LOG_DEBUG("FdContext::del_event event not exists: fd={}, event={}, current_events={}",
-                                 fd_, event, events_);
+                                 fd_, event_to_string(event), events_);
             return events_;
         }
 
@@ -55,7 +55,7 @@ namespace zcoroutine {
         }
 
         ZCOROUTINE_LOG_DEBUG("FdContext::del_event success: fd={}, event={}, old_events={}, new_events={}",
-                             fd_, event, old_events, new_events);
+                             fd_, event_to_string(event), old_events, new_events);
 
         return new_events;
     }
@@ -69,7 +69,7 @@ namespace zcoroutine {
             // 检查事件是否存在
             if (!(events_ & event)) {
                 ZCOROUTINE_LOG_DEBUG("FdContext::cancel_event event not exists: fd={}, event={}, current_events={}",
-                                     fd_, event, events_);
+                                     fd_, event_to_string(event), events_);
                 return events_;
             }
 
@@ -88,26 +88,26 @@ namespace zcoroutine {
             reset_event_context(ctx);
 
             ZCOROUTINE_LOG_DEBUG("FdContext::cancel_event success: fd={}, event={}, old_events={}, new_events={}",
-                                 fd_, event, old_events, new_events);
+                                 fd_, event_to_string(event), old_events, new_events);
         }
 
         if (callback) {
-            ZCOROUTINE_LOG_DEBUG("FdContext::cancel_event executing callback: fd={}, event={}", fd_, event);
+            ZCOROUTINE_LOG_DEBUG("FdContext::cancel_event executing callback: fd={}, event={}", fd_, event_to_string(event));
             callback();
         }
         else if (fiber) {
             ZCOROUTINE_LOG_DEBUG("FdContext::cancel_event scheduling fiber: fd={}, event={}, fiber_id={}",
-                                 fd_, event, fiber->id());
+                                 fd_, event_to_string(event), fiber->id());
             Scheduler *scheduler = Scheduler::get_this();
             if (scheduler) {
                 scheduler->schedule(fiber);
             }
             else {
-                ZCOROUTINE_LOG_WARN("FdContext::cancel_event no scheduler available: fd={}, event={}", fd_, event);
+                ZCOROUTINE_LOG_WARN("FdContext::cancel_event no scheduler available: fd={}, event={}", fd_, event_to_string(event));
             }
         }
         else {
-            ZCOROUTINE_LOG_DEBUG("FdContext::cancel_event no callback or fiber: fd={}, event={}", fd_, event);
+            ZCOROUTINE_LOG_DEBUG("FdContext::cancel_event no callback or fiber: fd={}, event={}", fd_, event_to_string(event));
         }
 
         return new_events;
@@ -202,7 +202,7 @@ namespace zcoroutine {
             if (!(events_ & event)) {
                 ZCOROUTINE_LOG_DEBUG(
                     "FdContext::trigger_event event not registered: fd={}, event={}, current_events={}",
-                    fd_, event, events_);
+                    fd_, event_to_string(event), events_);
                 return;
             }
 
@@ -219,28 +219,28 @@ namespace zcoroutine {
 
             ZCOROUTINE_LOG_DEBUG(
                 "FdContext::trigger_event deleted event: fd={}, event={}, old_events={}, new_events={}",
-                fd_, event, old_events, events_);
+                fd_, event_to_string(event), old_events, events_);
         }
 
 
         // 触发回调或调度协程
         if (callback) {
-            ZCOROUTINE_LOG_DEBUG("FdContext::trigger_event executing callback: fd={}, event={}", fd_, event);
+            ZCOROUTINE_LOG_DEBUG("FdContext::trigger_event executing callback: fd={}, event={}", fd_, event_to_string(event));
             callback();
         }
         else if (fiber) {
             ZCOROUTINE_LOG_DEBUG("FdContext::trigger_event scheduling fiber: fd={}, event={}, fiber_id={}",
-                                 fd_, event, fiber->id());
+                                 fd_, event_to_string(event), fiber->id());
             Scheduler *scheduler = Scheduler::get_this();
             if (scheduler) {
                 scheduler->schedule(fiber);
             }
             else {
-                ZCOROUTINE_LOG_WARN("FdContext::trigger_event no scheduler available: fd={}, event={}", fd_, event);
+                ZCOROUTINE_LOG_WARN("FdContext::trigger_event no scheduler available: fd={}, event={}", fd_, event_to_string(event));
             }
         }
         else {
-            ZCOROUTINE_LOG_WARN("FdContext::trigger_event no callback or fiber: fd={}, event={}", fd_, event);
+            ZCOROUTINE_LOG_WARN("FdContext::trigger_event no callback or fiber: fd={}, event={}", fd_, event_to_string(event));
         }
     }
 
@@ -253,7 +253,7 @@ namespace zcoroutine {
         }
 
         // 不应该到达这里
-        ZCOROUTINE_LOG_ERROR("FdContext::get_event_context invalid event: fd={}, event={}", fd_, event);
+        ZCOROUTINE_LOG_ERROR("FdContext::get_event_context invalid event: fd={}, event={}", fd_, event_to_string(event));
         return read_ctx_;
     }
 

@@ -5,11 +5,10 @@
 #include <functional>
 #include <string>
 #include <atomic>
-#include <vector>
 #include "runtime/context.h"
 #include "runtime/stack_allocator.h"
 #include "runtime/shared_stack.h"
-#include "util/noncopyable.h"
+
 
 namespace zcoroutine {
 
@@ -34,6 +33,26 @@ public:
         kSuspended,     // 挂起态，主动让出CPU
         kTerminated     // 终止态，执行完毕
     };
+    
+    /**
+     * @brief 将State枚举转换为字符串
+     * @param state 状态类型
+     * @return 状态类型的字符串表示
+     */
+    static const char* state_to_string(State state) {
+        switch (state) {
+            case State::kReady:
+                return "READY";
+            case State::kRunning:
+                return "RUNNING";
+            case State::kSuspended:
+                return "SUSPENDED";
+            case State::kTerminated:
+                return "TERMINATED";
+            default:
+                return "UNKNOWN";
+        }
+    }
 
     /**
      * @brief 构造函数

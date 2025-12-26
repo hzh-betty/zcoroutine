@@ -1,0 +1,386 @@
+[
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/util/thread_context.cc.o -c /home/betty/repositories/zcoroutine/src/util/thread_context.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/util/thread_context.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/util/thread_context.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/util/zcoroutine_logger.cc.o -c /home/betty/repositories/zcoroutine/src/util/zcoroutine_logger.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/util/zcoroutine_logger.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/util/zcoroutine_logger.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/runtime/context.cc.o -c /home/betty/repositories/zcoroutine/src/runtime/context.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/runtime/context.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/runtime/context.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/runtime/fiber.cc.o -c /home/betty/repositories/zcoroutine/src/runtime/fiber.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/runtime/fiber.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/runtime/fiber.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/runtime/shared_stack.cc.o -c /home/betty/repositories/zcoroutine/src/runtime/shared_stack.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/runtime/shared_stack.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/runtime/shared_stack.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/runtime/stack_allocator.cc.o -c /home/betty/repositories/zcoroutine/src/runtime/stack_allocator.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/runtime/stack_allocator.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/runtime/stack_allocator.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/scheduling/fiber_pool.cc.o -c /home/betty/repositories/zcoroutine/src/scheduling/fiber_pool.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/scheduling/fiber_pool.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/scheduling/fiber_pool.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/scheduling/scheduler.cc.o -c /home/betty/repositories/zcoroutine/src/scheduling/scheduler.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/scheduling/scheduler.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/scheduling/scheduler.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/scheduling/task_queue.cc.o -c /home/betty/repositories/zcoroutine/src/scheduling/task_queue.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/scheduling/task_queue.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/scheduling/task_queue.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/io/epoll_poller.cc.o -c /home/betty/repositories/zcoroutine/src/io/epoll_poller.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/io/epoll_poller.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/io/epoll_poller.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/io/fd_context.cc.o -c /home/betty/repositories/zcoroutine/src/io/fd_context.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/io/fd_context.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/io/fd_context.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/io/fd_context_table.cc.o -c /home/betty/repositories/zcoroutine/src/io/fd_context_table.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/io/fd_context_table.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/io/fd_context_table.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/io/io_scheduler.cc.o -c /home/betty/repositories/zcoroutine/src/io/io_scheduler.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/io/io_scheduler.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/io/io_scheduler.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/io/status_table.cc.o -c /home/betty/repositories/zcoroutine/src/io/status_table.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/io/status_table.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/io/status_table.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/timer/timer.cc.o -c /home/betty/repositories/zcoroutine/src/timer/timer.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/timer/timer.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/timer/timer.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/timer/timer_manager.cc.o -c /home/betty/repositories/zcoroutine/src/timer/timer_manager.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/timer/timer_manager.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/timer/timer_manager.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzcoroutine_shared_EXPORTS -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -fPIC -o CMakeFiles/zcoroutine_shared.dir/src/hook/hook.cc.o -c /home/betty/repositories/zcoroutine/src/hook/hook.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/hook/hook.cc",
+  "output": "CMakeFiles/zcoroutine_shared.dir/src/hook/hook.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/util/thread_context.cc.o -c /home/betty/repositories/zcoroutine/src/util/thread_context.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/util/thread_context.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/util/thread_context.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/util/zcoroutine_logger.cc.o -c /home/betty/repositories/zcoroutine/src/util/zcoroutine_logger.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/util/zcoroutine_logger.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/util/zcoroutine_logger.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/runtime/context.cc.o -c /home/betty/repositories/zcoroutine/src/runtime/context.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/runtime/context.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/runtime/context.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/runtime/fiber.cc.o -c /home/betty/repositories/zcoroutine/src/runtime/fiber.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/runtime/fiber.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/runtime/fiber.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/runtime/shared_stack.cc.o -c /home/betty/repositories/zcoroutine/src/runtime/shared_stack.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/runtime/shared_stack.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/runtime/shared_stack.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/runtime/stack_allocator.cc.o -c /home/betty/repositories/zcoroutine/src/runtime/stack_allocator.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/runtime/stack_allocator.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/runtime/stack_allocator.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/scheduling/fiber_pool.cc.o -c /home/betty/repositories/zcoroutine/src/scheduling/fiber_pool.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/scheduling/fiber_pool.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/scheduling/fiber_pool.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/scheduling/scheduler.cc.o -c /home/betty/repositories/zcoroutine/src/scheduling/scheduler.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/scheduling/scheduler.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/scheduling/scheduler.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/scheduling/task_queue.cc.o -c /home/betty/repositories/zcoroutine/src/scheduling/task_queue.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/scheduling/task_queue.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/scheduling/task_queue.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/io/epoll_poller.cc.o -c /home/betty/repositories/zcoroutine/src/io/epoll_poller.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/io/epoll_poller.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/io/epoll_poller.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/io/fd_context.cc.o -c /home/betty/repositories/zcoroutine/src/io/fd_context.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/io/fd_context.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/io/fd_context.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/io/fd_context_table.cc.o -c /home/betty/repositories/zcoroutine/src/io/fd_context_table.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/io/fd_context_table.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/io/fd_context_table.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/io/io_scheduler.cc.o -c /home/betty/repositories/zcoroutine/src/io/io_scheduler.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/io/io_scheduler.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/io/io_scheduler.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/io/status_table.cc.o -c /home/betty/repositories/zcoroutine/src/io/status_table.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/io/status_table.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/io/status_table.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/timer/timer.cc.o -c /home/betty/repositories/zcoroutine/src/timer/timer.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/timer/timer.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/timer/timer.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/timer/timer_manager.cc.o -c /home/betty/repositories/zcoroutine/src/timer/timer_manager.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/timer/timer_manager.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/timer/timer_manager.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/zcoroutine_static.dir/src/hook/hook.cc.o -c /home/betty/repositories/zcoroutine/src/hook/hook.cc",
+  "file": "/home/betty/repositories/zcoroutine/src/hook/hook.cc",
+  "output": "CMakeFiles/zcoroutine_static.dir/src/hook/hook.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -DGTEST_HAS_PTHREAD=1 -o CMakeFiles/fd_context_test.dir/tests/unit/fd_context_test.cc.o -c /home/betty/repositories/zcoroutine/tests/unit/fd_context_test.cc",
+  "file": "/home/betty/repositories/zcoroutine/tests/unit/fd_context_test.cc",
+  "output": "CMakeFiles/fd_context_test.dir/tests/unit/fd_context_test.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -DGTEST_HAS_PTHREAD=1 -o CMakeFiles/fiber_pool_test.dir/tests/unit/fiber_pool_test.cc.o -c /home/betty/repositories/zcoroutine/tests/unit/fiber_pool_test.cc",
+  "file": "/home/betty/repositories/zcoroutine/tests/unit/fiber_pool_test.cc",
+  "output": "CMakeFiles/fiber_pool_test.dir/tests/unit/fiber_pool_test.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -DGTEST_HAS_PTHREAD=1 -o CMakeFiles/fiber_test.dir/tests/unit/fiber_test.cc.o -c /home/betty/repositories/zcoroutine/tests/unit/fiber_test.cc",
+  "file": "/home/betty/repositories/zcoroutine/tests/unit/fiber_test.cc",
+  "output": "CMakeFiles/fiber_test.dir/tests/unit/fiber_test.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -DGTEST_HAS_PTHREAD=1 -o CMakeFiles/scheduler_test.dir/tests/unit/scheduler_test.cc.o -c /home/betty/repositories/zcoroutine/tests/unit/scheduler_test.cc",
+  "file": "/home/betty/repositories/zcoroutine/tests/unit/scheduler_test.cc",
+  "output": "CMakeFiles/scheduler_test.dir/tests/unit/scheduler_test.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -DGTEST_HAS_PTHREAD=1 -o CMakeFiles/shared_stack_test.dir/tests/unit/shared_stack_test.cc.o -c /home/betty/repositories/zcoroutine/tests/unit/shared_stack_test.cc",
+  "file": "/home/betty/repositories/zcoroutine/tests/unit/shared_stack_test.cc",
+  "output": "CMakeFiles/shared_stack_test.dir/tests/unit/shared_stack_test.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -DGTEST_HAS_PTHREAD=1 -o CMakeFiles/status_table_test.dir/tests/unit/status_table_test.cc.o -c /home/betty/repositories/zcoroutine/tests/unit/status_table_test.cc",
+  "file": "/home/betty/repositories/zcoroutine/tests/unit/status_table_test.cc",
+  "output": "CMakeFiles/status_table_test.dir/tests/unit/status_table_test.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -DGTEST_HAS_PTHREAD=1 -o CMakeFiles/task_queue_test.dir/tests/unit/task_queue_test.cc.o -c /home/betty/repositories/zcoroutine/tests/unit/task_queue_test.cc",
+  "file": "/home/betty/repositories/zcoroutine/tests/unit/task_queue_test.cc",
+  "output": "CMakeFiles/task_queue_test.dir/tests/unit/task_queue_test.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -DGTEST_HAS_PTHREAD=1 -o CMakeFiles/timer_test.dir/tests/unit/timer_test.cc.o -c /home/betty/repositories/zcoroutine/tests/unit/timer_test.cc",
+  "file": "/home/betty/repositories/zcoroutine/tests/unit/timer_test.cc",
+  "output": "CMakeFiles/timer_test.dir/tests/unit/timer_test.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -DGTEST_HAS_PTHREAD=1 -o CMakeFiles/hook_integration_test.dir/tests/integration/hook_integration_test.cc.o -c /home/betty/repositories/zcoroutine/tests/integration/hook_integration_test.cc",
+  "file": "/home/betty/repositories/zcoroutine/tests/integration/hook_integration_test.cc",
+  "output": "CMakeFiles/hook_integration_test.dir/tests/integration/hook_integration_test.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -DGTEST_HAS_PTHREAD=1 -o CMakeFiles/io_scheduler_integration_test.dir/tests/integration/io_scheduler_integration_test.cc.o -c /home/betty/repositories/zcoroutine/tests/integration/io_scheduler_integration_test.cc",
+  "file": "/home/betty/repositories/zcoroutine/tests/integration/io_scheduler_integration_test.cc",
+  "output": "CMakeFiles/io_scheduler_integration_test.dir/tests/integration/io_scheduler_integration_test.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -DGTEST_HAS_PTHREAD=1 -o CMakeFiles/scheduler_fiber_integration_test.dir/tests/integration/scheduler_fiber_integration_test.cc.o -c /home/betty/repositories/zcoroutine/tests/integration/scheduler_fiber_integration_test.cc",
+  "file": "/home/betty/repositories/zcoroutine/tests/integration/scheduler_fiber_integration_test.cc",
+  "output": "CMakeFiles/scheduler_fiber_integration_test.dir/tests/integration/scheduler_fiber_integration_test.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -DGTEST_HAS_PTHREAD=1 -o CMakeFiles/timer_scheduler_integration_test.dir/tests/integration/timer_scheduler_integration_test.cc.o -c /home/betty/repositories/zcoroutine/tests/integration/timer_scheduler_integration_test.cc",
+  "file": "/home/betty/repositories/zcoroutine/tests/integration/timer_scheduler_integration_test.cc",
+  "output": "CMakeFiles/timer_scheduler_integration_test.dir/tests/integration/timer_scheduler_integration_test.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/include -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++14 -o CMakeFiles/http_server_benchmark.dir/tests/benchmark/http_server.cc.o -c /home/betty/repositories/zcoroutine/tests/benchmark/http_server.cc",
+  "file": "/home/betty/repositories/zcoroutine/tests/benchmark/http_server.cc",
+  "output": "CMakeFiles/http_server_benchmark.dir/tests/benchmark/http_server.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzlog_shared_EXPORTS -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -fPIC -o zlog/CMakeFiles/zlog_shared.dir/src/buffer.cc.o -c /home/betty/repositories/zcoroutine/zlog/src/buffer.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/src/buffer.cc",
+  "output": "zlog/CMakeFiles/zlog_shared.dir/src/buffer.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzlog_shared_EXPORTS -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -fPIC -o zlog/CMakeFiles/zlog_shared.dir/src/format.cc.o -c /home/betty/repositories/zcoroutine/zlog/src/format.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/src/format.cc",
+  "output": "zlog/CMakeFiles/zlog_shared.dir/src/format.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzlog_shared_EXPORTS -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -fPIC -o zlog/CMakeFiles/zlog_shared.dir/src/level.cc.o -c /home/betty/repositories/zcoroutine/zlog/src/level.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/src/level.cc",
+  "output": "zlog/CMakeFiles/zlog_shared.dir/src/level.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzlog_shared_EXPORTS -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -fPIC -o zlog/CMakeFiles/zlog_shared.dir/src/logger.cc.o -c /home/betty/repositories/zcoroutine/zlog/src/logger.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/src/logger.cc",
+  "output": "zlog/CMakeFiles/zlog_shared.dir/src/logger.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzlog_shared_EXPORTS -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -fPIC -o zlog/CMakeFiles/zlog_shared.dir/src/looper.cc.o -c /home/betty/repositories/zcoroutine/zlog/src/looper.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/src/looper.cc",
+  "output": "zlog/CMakeFiles/zlog_shared.dir/src/looper.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzlog_shared_EXPORTS -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -fPIC -o zlog/CMakeFiles/zlog_shared.dir/src/message.cc.o -c /home/betty/repositories/zcoroutine/zlog/src/message.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/src/message.cc",
+  "output": "zlog/CMakeFiles/zlog_shared.dir/src/message.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzlog_shared_EXPORTS -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -fPIC -o zlog/CMakeFiles/zlog_shared.dir/src/sink.cc.o -c /home/betty/repositories/zcoroutine/zlog/src/sink.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/src/sink.cc",
+  "output": "zlog/CMakeFiles/zlog_shared.dir/src/sink.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -Dzlog_shared_EXPORTS -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -fPIC -o zlog/CMakeFiles/zlog_shared.dir/src/util.cc.o -c /home/betty/repositories/zcoroutine/zlog/src/util.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/src/util.cc",
+  "output": "zlog/CMakeFiles/zlog_shared.dir/src/util.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -o zlog/CMakeFiles/zlog_static.dir/src/buffer.cc.o -c /home/betty/repositories/zcoroutine/zlog/src/buffer.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/src/buffer.cc",
+  "output": "zlog/CMakeFiles/zlog_static.dir/src/buffer.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -o zlog/CMakeFiles/zlog_static.dir/src/format.cc.o -c /home/betty/repositories/zcoroutine/zlog/src/format.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/src/format.cc",
+  "output": "zlog/CMakeFiles/zlog_static.dir/src/format.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -o zlog/CMakeFiles/zlog_static.dir/src/level.cc.o -c /home/betty/repositories/zcoroutine/zlog/src/level.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/src/level.cc",
+  "output": "zlog/CMakeFiles/zlog_static.dir/src/level.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -o zlog/CMakeFiles/zlog_static.dir/src/logger.cc.o -c /home/betty/repositories/zcoroutine/zlog/src/logger.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/src/logger.cc",
+  "output": "zlog/CMakeFiles/zlog_static.dir/src/logger.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -o zlog/CMakeFiles/zlog_static.dir/src/looper.cc.o -c /home/betty/repositories/zcoroutine/zlog/src/looper.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/src/looper.cc",
+  "output": "zlog/CMakeFiles/zlog_static.dir/src/looper.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -o zlog/CMakeFiles/zlog_static.dir/src/message.cc.o -c /home/betty/repositories/zcoroutine/zlog/src/message.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/src/message.cc",
+  "output": "zlog/CMakeFiles/zlog_static.dir/src/message.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -o zlog/CMakeFiles/zlog_static.dir/src/sink.cc.o -c /home/betty/repositories/zcoroutine/zlog/src/sink.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/src/sink.cc",
+  "output": "zlog/CMakeFiles/zlog_static.dir/src/sink.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -o zlog/CMakeFiles/zlog_static.dir/src/util.cc.o -c /home/betty/repositories/zcoroutine/zlog/src/util.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/src/util.cc",
+  "output": "zlog/CMakeFiles/zlog_static.dir/src/util.cc.o"
+},
+{
+  "directory": "/home/betty/repositories/zcoroutine/build",
+  "command": "/usr/bin/clang++ -DFMT_SHARED -I/home/betty/repositories/zcoroutine/zlog/include -g -std=gnu++11 -o zlog/CMakeFiles/bench.dir/bench/bench.cc.o -c /home/betty/repositories/zcoroutine/zlog/bench/bench.cc",
+  "file": "/home/betty/repositories/zcoroutine/zlog/bench/bench.cc",
+  "output": "zlog/CMakeFiles/bench.dir/bench/bench.cc.o"
+}
+]

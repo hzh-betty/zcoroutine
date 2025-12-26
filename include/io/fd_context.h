@@ -30,6 +30,24 @@ public:
     };
     
     /**
+     * @brief 将Event枚举转换为字符串
+     * @param event 事件类型
+     * @return 事件类型的字符串表示
+     */
+    static const char* event_to_string(Event event) {
+        switch (event) {
+            case kNone:
+                return "NONE";
+            case kRead:
+                return "READ";
+            case kWrite:
+                return "WRITE";
+            default:
+                return "UNKNOWN";
+        }
+    }
+    
+    /**
      * @brief 事件上下文结构
      * 
      * 存储每个事件类型的协程和回调函数。

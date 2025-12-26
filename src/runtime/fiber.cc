@@ -225,7 +225,7 @@ namespace zcoroutine
     Fiber::~Fiber()
     {
         ZCOROUTINE_LOG_DEBUG("Fiber destroying: name={}, id={}, state={}, is_shared_stack={}",
-                             name_, id_, static_cast<int>(state_), stack_ctx_->is_shared_stack());
+                             name_, id_, state_to_string(state_), stack_ctx_->is_shared_stack());
 
         if (stack_ctx_->is_shared_stack())
         {
@@ -271,7 +271,7 @@ namespace zcoroutine
         state_ = State::kRunning;
 
         ZCOROUTINE_LOG_DEBUG("Fiber resume: name={}, id={}, prev_state={}",
-                             name_, id_, static_cast<int>(prev_state));
+                             name_, id_, state_to_string(prev_state));
 
         // 使用统一的切换函数（处理共享栈保存和恢复）
         co_swap(prev_fiber, this);

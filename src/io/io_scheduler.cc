@@ -102,7 +102,7 @@ namespace zcoroutine {
 
 
     int IoScheduler::add_event(int fd, FdContext::Event event, std::function<void()> callback) {
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::add_event fd={}, event={}, has_callback={}", fd, event, callback != nullptr);
+        ZCOROUTINE_LOG_DEBUG("IoScheduler::add_event fd={}, event={}, has_callback={}", fd, FdContext::event_to_string(event), callback != nullptr);
 
         FdContext::ptr fd_ctx = get_fd_context(fd, true);
         if (!fd_ctx) {
@@ -119,7 +119,7 @@ namespace zcoroutine {
             // 如果没有回调，使用当前协程
             Fiber* current_fiber = Fiber::get_this();
             if (!current_fiber) {
-                ZCOROUTINE_LOG_ERROR("IoScheduler::add_event no callback and no current fiber, fd={}, event={}", fd, event);
+                ZCOROUTINE_LOG_ERROR("IoScheduler::add_event no callback and no current fiber, fd={}, event={}", fd, FdContext::event_to_string(event));
                 return -1;
             }
             event_ctx.fiber = current_fiber->shared_from_this();
@@ -140,18 +140,18 @@ namespace zcoroutine {
 
         if (ret < 0) {
             ZCOROUTINE_LOG_ERROR("IoScheduler::add_event epoll operation failed, fd={}, event={}, op={}",
-                                 fd, event, op == EPOLL_CTL_ADD ? "ADD" : "MOD");
+                                 fd, FdContext::event_to_string(event), op == EPOLL_CTL_ADD ? "ADD" : "MOD");
             fd_ctx->del_event(event);
             return -1;
         }
 
         ZCOROUTINE_LOG_DEBUG("IoScheduler::add_event success, fd={}, event={}, new_events={}",
-                             fd, event, new_events);
+                             fd, FdContext::event_to_string(event), new_events);
         return 0;
     }
 
     int IoScheduler::del_event(int fd, FdContext::Event event)  {
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::del_event fd={}, event={}", fd, event);
+        ZCOROUTINE_LOG_DEBUG("IoScheduler::del_event fd={}, event={}", fd, FdContext::event_to_string(event));
 
         auto self = this;
         FdContext::ptr fd_ctx = self->get_fd_context(fd, false);
@@ -179,12 +179,12 @@ namespace zcoroutine {
         }
 
         ZCOROUTINE_LOG_DEBUG("IoScheduler::del_event success, fd={}, event={}, remaining_events={}",
-                             fd, event, new_events);
+                             fd, FdContext::event_to_string(event), new_events);
         return 0;
     }
 
     int IoScheduler::cancel_event(int fd, FdContext::Event event)  {
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_event fd={}, event={}", fd, event);
+        ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_event fd={}, event={}", fd, FdContext::event_to_string(event));
 
         auto self = this;
         FdContext::ptr fd_ctx = self->get_fd_context(fd, false);
@@ -212,7 +212,7 @@ namespace zcoroutine {
         }
 
         ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_event success, fd={}, event={}, remaining_events={}",
-                             fd, event, new_events);
+                             fd, FdContext::event_to_string(event), new_events);
         return 0;
     }
 
@@ -261,7 +261,7 @@ namespace zcoroutine {
             return;
         }
 
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::trigger_event fd={}, event={}", fd, event);
+        ZCOROUTINE_LOG_DEBUG("IoScheduler::trigger_event fd={}, event={}", fd, FdContext::event_to_string(event));
         
         // 先从 FdContext 中取出并清空 EventContext，
         // 避免回调中重新注册时被后续 del_event 清空
@@ -278,14 +278,14 @@ namespace zcoroutine {
         
         // 最后触发回调或调度协程（epoll已更新，回调中可以安全地重新注册）
         if (callback) {
-            ZCOROUTINE_LOG_DEBUG("IoScheduler::trigger_event executing callback: fd={}, event={}", fd, event);
+            ZCOROUTINE_LOG_DEBUG("IoScheduler::trigger_event executing callback: fd={}, event={}", fd, FdContext::event_to_string(event));
             callback();
         } else if (fiber) {
             ZCOROUTINE_LOG_DEBUG("IoScheduler::trigger_event scheduling fiber: fd={}, event={}, fiber_id={}",
-                                 fd, event, fiber->id());
+                                 fd, FdContext::event_to_string(event), fiber->id());
             schedule(fiber);
         } else {
-            ZCOROUTINE_LOG_WARN("IoScheduler::trigger_event no callback or fiber: fd={}, event={}", fd, event);
+            ZCOROUTINE_LOG_WARN("IoScheduler::trigger_event no callback or fiber: fd={}, event={}", fd, FdContext::event_to_string(event));
         }
     }
 

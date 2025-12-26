@@ -2,7 +2,6 @@
 #define ZCOROUTINE_CONTEXT_H_
 
 #include <ucontext.h>
-#include <cstdint>
 
 namespace zcoroutine {
 

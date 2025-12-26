@@ -8,7 +8,6 @@
 #include "hook/hook.h"
 #include "io/io_scheduler.h"
 #include "io/status_table.h"
-#include "runtime/fiber.h"
 #include "util/zcoroutine_logger.h"
 
 #include <sys/socket.h>
@@ -182,7 +181,9 @@ TEST_F(HookIntegrationTest, AcceptHookRegistration) {
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     int client_fd = socket(AF_INET, SOCK_STREAM, 0);
     addr.sin_port = htons(port);
-    connect(client_fd, (struct sockaddr*)&addr, sizeof(addr));
+    if (connect(client_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        perror("connect");
+    }
     
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
     EXPECT_GT(accepted_fd.load(), 0);

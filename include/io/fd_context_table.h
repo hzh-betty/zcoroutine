@@ -2,7 +2,6 @@
 #define ZCOROUTINE_FD_CONTEXT_TABLE_H_
 
 #include <vector>
-#include <memory>
 
 #include "util/noncopyable.h"
 #include "io/fd_context.h"

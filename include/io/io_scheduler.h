@@ -2,7 +2,6 @@
 #define ZCOROUTINE_IO_SCHEDULER_H_
 
 #include <memory>
-#include <atomic>
 #include "scheduling/scheduler.h"
 #include "io/epoll_poller.h"
 #include "io/fd_context.h"

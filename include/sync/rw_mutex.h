@@ -2,7 +2,6 @@
 #define ZCOROUTINE_RW_MUTEX_H_
 
 #include <pthread.h>
-#include <atomic>
 #include "util/noncopyable.h"
 
 namespace zcoroutine {

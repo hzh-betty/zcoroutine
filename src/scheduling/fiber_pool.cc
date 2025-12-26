@@ -65,7 +65,7 @@ void FiberPool::release(Fiber::ptr fiber) {
     // 检查协程状态
     if (fiber->state() != Fiber::State::kTerminated) {
         ZCOROUTINE_LOG_WARN("FiberPool::release fiber not terminated: fiber_id={}, state={}",
-                            fiber->id(), static_cast<int>(fiber->state()));
+                            fiber->id(), Fiber::state_to_string(fiber->state()));
         return;
     }
     
