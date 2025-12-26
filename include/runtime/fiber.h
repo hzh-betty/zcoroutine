@@ -122,20 +122,20 @@ public:
      * @brief 检查是否使用共享栈
      * @return true表示使用共享栈，false表示使用独立栈
      */
-    bool is_shared_stack() const { return stack_ctx_ && stack_ctx_->is_shared_stack(); }
+    bool is_shared_stack() const { return shared_ctx_ && shared_ctx_->is_shared_stack(); }
 
     /**
      * @brief 获取栈模式
      * @return 当前使用的栈模式
      */
-    StackMode stack_mode() const { return stack_ctx_ && stack_ctx_->is_shared_stack() ? StackMode::kShared : StackMode::kIndependent; }
+    StackMode stack_mode() const { return shared_ctx_ && shared_ctx_->is_shared_stack() ? StackMode::kShared : StackMode::kIndependent; }
 
     /**
      * @brief 获取栈上下文（共享栈相关）
      * @return 栈上下文指针
      */
-    FiberStackContext* stack_context() { return stack_ctx_.get(); }
-    const FiberStackContext* stack_context() const { return stack_ctx_.get(); }
+    SharedContext* get_shared_context() { return shared_ctx_.get(); }
+    const SharedContext* get_shared_context() const { return shared_ctx_.get(); }
 
     /**
      * @brief 获取上下文对象
@@ -198,7 +198,7 @@ private:
     std::exception_ptr exception_;          // 协程异常指针
 
     // 共享栈上下文（封装所有共享栈相关成员）
-    std::unique_ptr<FiberStackContext> stack_ctx_ = nullptr;
+    std::unique_ptr<SharedContext> shared_ctx_ = nullptr;
 
     // 全局协程计数器（线程安全）
     static std::atomic<uint64_t> s_fiber_count_;

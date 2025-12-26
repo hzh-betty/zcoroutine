@@ -188,10 +188,10 @@ private:
  * @brief 协程栈上下文类
  * 封装协程共享栈相关的所有成员
  */
-class FiberStackContext {
+class SharedContext {
 public:
-    FiberStackContext() = default;
-    ~FiberStackContext();
+    SharedContext() = default;
+    ~SharedContext();
 
     /**
      * @brief 初始化为共享栈模式

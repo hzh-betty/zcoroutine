@@ -154,7 +154,7 @@ static void switch_func() {
         
         // 处理当前协程的栈保存（在 switch stack 上执行，安全）
         if (curr->is_shared_stack()) {
-            FiberStackContext* curr_stack_ctx = curr->stack_context();
+            SharedContext* curr_stack_ctx = curr->get_shared_context();
             if (curr_stack_ctx) {
                 // 从 curr 的 context 中获取 rsp（已由 swapcontext 保存）
                 void* curr_rsp = curr->context()->get_stack_pointer();
@@ -168,7 +168,7 @@ static void switch_func() {
         
         // 处理目标协程的栈恢复（在 switch stack 上执行，安全）
         if (target->is_shared_stack()) {
-            FiberStackContext* target_stack_ctx = target->stack_context();
+            SharedContext* target_stack_ctx = target->get_shared_context();
             if (target_stack_ctx) {
                 SharedStackBuffer* buffer = target_stack_ctx->shared_stack_buffer();
                 if (buffer) {
@@ -180,7 +180,7 @@ static void switch_func() {
                     
                     // 如果有其他协程占用且不是目标协程且不是当前协程，保存其栈内容
                     if (occupy_fiber && occupy_fiber != target && occupy_fiber != curr) {
-                        FiberStackContext* occupy_stack_ctx = occupy_fiber->stack_context();
+                        SharedContext* occupy_stack_ctx = occupy_fiber->get_shared_context();
                         if (occupy_stack_ctx) {
                             void* occupy_rsp = occupy_fiber->context()->get_stack_pointer();
                             occupy_stack_ctx->save_stack_buffer(occupy_rsp);

@@ -130,10 +130,10 @@ SwitchStack::~SwitchStack()
 }
 
 // ============================================================================
-// FiberStackContext 实现
+// SharedContext 实现
 // ============================================================================
 
-FiberStackContext::~FiberStackContext()
+SharedContext::~SharedContext()
 {
     if (save_buffer_)
     {
@@ -143,13 +143,13 @@ FiberStackContext::~FiberStackContext()
     }
 }
 
-void FiberStackContext::init_shared(SharedStackBuffer* buffer)
+void SharedContext::init_shared(SharedStackBuffer* buffer)
 {
     is_shared_stack_ = true;
     shared_stack_buffer_ = buffer;
 }
 
-void FiberStackContext::save_stack_buffer(void* stack_sp)
+void SharedContext::save_stack_buffer(void* stack_sp)
 {
     if (!is_shared_stack_ || !shared_stack_buffer_ || !stack_sp)
     {
@@ -163,7 +163,7 @@ void FiberStackContext::save_stack_buffer(void* stack_sp)
     
     if (sp >= stack_top)
     {
-        ZCOROUTINE_LOG_WARN("FiberStackContext::save_stack_buffer invalid stack_sp");
+        ZCOROUTINE_LOG_WARN("SharedContext::save_stack_buffer invalid stack_sp");
         return;
     }
 
@@ -184,7 +184,7 @@ void FiberStackContext::save_stack_buffer(void* stack_sp)
     save_buffer_ = static_cast<char*>(StackAllocator::allocate(len));
     if (!save_buffer_)
     {
-        ZCOROUTINE_LOG_ERROR("FiberStackContext::save_stack_buffer allocation failed: size={}", len);
+        ZCOROUTINE_LOG_ERROR("SharedContext::save_stack_buffer allocation failed: size={}", len);
         return;
     }
 
@@ -194,10 +194,10 @@ void FiberStackContext::save_stack_buffer(void* stack_sp)
     // 复制栈内容
     memcpy(save_buffer_, sp, len);
 
-    ZCOROUTINE_LOG_DEBUG("FiberStackContext::save_stack_buffer: size={}", save_size_);
+    ZCOROUTINE_LOG_DEBUG("SharedContext::save_stack_buffer: size={}", save_size_);
 }
 
-void FiberStackContext::restore_stack_buffer()
+void SharedContext::restore_stack_buffer()
 {
     if (!is_shared_stack_ || !save_buffer_ || save_size_ == 0 || !saved_stack_sp_)
     {
@@ -211,7 +211,7 @@ void FiberStackContext::restore_stack_buffer()
     
     if (sp < stack_base || sp >= stack_top)
     {
-        ZCOROUTINE_LOG_ERROR("FiberStackContext::restore_stack_buffer invalid saved_stack_sp: sp={}, base={}, top={}",
+        ZCOROUTINE_LOG_ERROR("SharedContext::restore_stack_buffer invalid saved_stack_sp: sp={}, base={}, top={}",
                             static_cast<void*>(sp), 
                             static_cast<void*>(stack_base), static_cast<void*>(stack_top));
         return;
@@ -220,10 +220,10 @@ void FiberStackContext::restore_stack_buffer()
     // 恢复栈内容
     memcpy(sp, save_buffer_, save_size_);
 
-    ZCOROUTINE_LOG_DEBUG("FiberStackContext::restore_stack_buffer: size={}", save_size_);
+    ZCOROUTINE_LOG_DEBUG("SharedContext::restore_stack_buffer: size={}", save_size_);
 }
 
-void FiberStackContext::reset()
+void SharedContext::reset()
 {
     if (save_buffer_)
     {
@@ -234,7 +234,7 @@ void FiberStackContext::reset()
     saved_stack_sp_ = nullptr;
 }
 
-void FiberStackContext::clear_occupy(Fiber* owner)
+void SharedContext::clear_occupy(Fiber* owner)
 {
     if (shared_stack_buffer_ && shared_stack_buffer_->occupy_fiber() == owner)
     {

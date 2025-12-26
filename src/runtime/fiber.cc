@@ -15,7 +15,7 @@ namespace zcoroutine
 
     // 主协程构造函数
     Fiber::Fiber()
-        : name_("main_fiber"), id_(0), state_(State::kRunning), stack_size_(0), context_(std::make_unique<Context>()), stack_ctx_(std::make_unique<FiberStackContext>())
+        : name_("main_fiber"), id_(0), state_(State::kRunning), stack_size_(0), context_(std::make_unique<Context>()), shared_ctx_(std::make_unique<SharedContext>())
     {
 
         // 主协程直接获取当前上下文
@@ -63,8 +63,8 @@ namespace zcoroutine
     // 整个过程不使用任何 magic number，完全 ABI 安全
     void Fiber::co_swap(Fiber* curr, Fiber* target)
     {
-        bool needs_switch_stack = curr->stack_ctx_ && curr->stack_ctx_->is_shared_stack() || 
-                                  target->stack_ctx_ && target->stack_ctx_->is_shared_stack();
+        bool needs_switch_stack = curr->shared_ctx_ && curr->shared_ctx_->is_shared_stack() || 
+                                  target->shared_ctx_ && target->shared_ctx_->is_shared_stack();
         
         if (needs_switch_stack)
         {
@@ -106,7 +106,7 @@ namespace zcoroutine
                  size_t stack_size,
                  const std::string &name,
                  bool use_shared_stack)
-        : stack_size_(stack_size), context_(std::make_unique<Context>()), callback_(std::move(func)), stack_ctx_(std::make_unique<FiberStackContext>())
+        : stack_size_(stack_size), context_(std::make_unique<Context>()), callback_(std::move(func)), shared_ctx_(std::make_unique<SharedContext>())
     {
         // 检查全局配置或显式指定使用共享栈
         bool should_use_shared = use_shared_stack ||
@@ -147,7 +147,7 @@ namespace zcoroutine
                 abort();
             }
 
-            stack_ctx_->init_shared(buffer);
+            shared_ctx_->init_shared(buffer);
             stack_size_ = shared_stack->stack_size();
             stack_ptr_ = buffer->buffer();
 
@@ -172,14 +172,14 @@ namespace zcoroutine
         context_->make_context(stack_ptr_, stack_size_, Fiber::main_func);
 
         ZCOROUTINE_LOG_INFO("Fiber created: name={}, id={}, is_shared_stack={}", 
-                            name_, id_, stack_ctx_->is_shared_stack());
+                            name_, id_, shared_ctx_->is_shared_stack());
     }
 
     // 使用指定共享栈的构造函数
     Fiber::Fiber(std::function<void()> func,
                  SharedStack* shared_stack,
                  const std::string &name)
-        : context_(std::make_unique<Context>()), callback_(std::move(func)), stack_ctx_(std::make_unique<FiberStackContext>())
+        : context_(std::make_unique<Context>()), callback_(std::move(func)), shared_ctx_(std::make_unique<SharedContext>())
     {
         // 分配全局唯一ID
         id_ = s_fiber_count_.fetch_add(1, std::memory_order_relaxed);
@@ -209,7 +209,7 @@ namespace zcoroutine
             abort();
         }
 
-        stack_ctx_->init_shared(buffer);
+        shared_ctx_->init_shared(buffer);
         stack_size_ = shared_stack->stack_size();
         stack_ptr_ = buffer->buffer();
 
@@ -225,12 +225,12 @@ namespace zcoroutine
     Fiber::~Fiber()
     {
         ZCOROUTINE_LOG_DEBUG("Fiber destroying: name={}, id={}, state={}, is_shared_stack={}",
-                             name_, id_, state_to_string(state_), stack_ctx_->is_shared_stack());
+                             name_, id_, state_to_string(state_), shared_ctx_->is_shared_stack());
 
-        if (stack_ctx_->is_shared_stack())
+        if (shared_ctx_->is_shared_stack())
         {
             // 共享栈模式：清理栈上下文
-            stack_ctx_->clear_occupy(this);
+            shared_ctx_->clear_occupy(this);
         }
         else
         {
@@ -315,9 +315,9 @@ namespace zcoroutine
         exception_ = nullptr;
 
         // 共享栈模式：清理保存的栈内容
-        if (stack_ctx_->is_shared_stack())
+        if (shared_ctx_->is_shared_stack())
         {
-            stack_ctx_->reset();
+            shared_ctx_->reset();
         }
 
         // 重新创建上下文
@@ -365,9 +365,9 @@ namespace zcoroutine
 
         // 切换回调度器或主协程
         // 如果协程终止且使用共享栈，清除占用标记
-        if (cur_fiber->state_ == State::kTerminated && cur_fiber->stack_ctx_->is_shared_stack())
+        if (cur_fiber->state_ == State::kTerminated && cur_fiber->shared_ctx_->is_shared_stack())
         {
-            cur_fiber->stack_ctx_->clear_occupy(cur_fiber);
+            cur_fiber->shared_ctx_->clear_occupy(cur_fiber);
         }
         cur_fiber->confirm_switch_target();
     }
