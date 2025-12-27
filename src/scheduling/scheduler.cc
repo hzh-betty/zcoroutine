@@ -11,6 +11,13 @@ Scheduler::Scheduler(int thread_count, std::string name, bool use_shared_stack)
       task_queue_(std::make_unique<TaskQueue>()), stopping_(true),
       active_thread_count_(0), idle_thread_count_(0),
       use_shared_stack_(use_shared_stack) {
+
+  // 创建主协程（保存线程的原始上下文）
+  // 注意：必须使用shared_ptr管理，因为ThreadContext使用weak_ptr持有
+  static Fiber::ptr main_fiber(new Fiber());
+  ThreadContext::set_main_fiber(main_fiber);
+  ThreadContext::set_current_fiber(main_fiber);
+
   // 如果使用共享栈模式，创建共享栈
   if (use_shared_stack_) {
     shared_stack_ = std::make_shared<SharedStack>();
@@ -121,12 +128,6 @@ void Scheduler::run() {
     ThreadContext::set_stack_mode(StackMode::kShared);
     ThreadContext::set_shared_stack(shared_stack_);
   }
-
-  // 创建主协程（保存线程的原始上下文）
-  // 注意：必须使用shared_ptr管理，因为ThreadContext使用weak_ptr持有
-  Fiber::ptr main_fiber(new Fiber());
-  ThreadContext::set_main_fiber(main_fiber);
-  ThreadContext::set_current_fiber(main_fiber);
 
   // 创建调度器协程，它将运行调度循环
   auto scheduler_fiber =
