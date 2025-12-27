@@ -217,16 +217,15 @@ unsigned int sleep(unsigned int seconds) {
     return sleep_f(seconds);
   }
 
-  zcoroutine::Fiber *cur_fiber = zcoroutine::Fiber::get_this();
+  zcoroutine::Fiber::ptr cur_fiber = zcoroutine::Fiber::get_this();
   if (!cur_fiber) {
     return sleep_f(seconds);
   }
 
   // 使用定时器和协程实现非阻塞sleep
   // 必须在yield之前捕获shared_ptr，保持协程存活直到定时器触发
-  auto fiber_ptr = cur_fiber->shared_from_this();
   iom->add_timer(seconds * 1000,
-                 [iom, fiber_ptr]() { iom->schedule(fiber_ptr); });
+                 [iom, cur_fiber]() { iom->schedule(cur_fiber); });
   zcoroutine::Fiber::yield();
 
   return 0;
@@ -242,14 +241,13 @@ int usleep(useconds_t usec) {
     return usleep_f(usec);
   }
 
-  zcoroutine::Fiber *cur_fiber = zcoroutine::Fiber::get_this();
+  zcoroutine::Fiber::ptr cur_fiber = zcoroutine::Fiber::get_this();
   if (!cur_fiber) {
     return usleep_f(usec);
   }
 
   // 必须在yield之前捕获shared_ptr，保持协程存活直到定时器触发
-  auto fiber_ptr = cur_fiber->shared_from_this();
-  iom->add_timer(usec / 1000, [iom, fiber_ptr]() { iom->schedule(fiber_ptr); });
+  iom->add_timer(usec / 1000, [iom, cur_fiber]() { iom->schedule(cur_fiber); });
   zcoroutine::Fiber::yield();
 
   return 0;
@@ -265,15 +263,14 @@ int nanosleep(const struct timespec *req, struct timespec *rem) {
     return nanosleep_f(req, rem);
   }
 
-  zcoroutine::Fiber *cur_fiber = zcoroutine::Fiber::get_this();
+  zcoroutine::Fiber::ptr cur_fiber = zcoroutine::Fiber::get_this();
   if (!cur_fiber) {
     return nanosleep_f(req, rem);
   }
 
   uint64_t timeout_ms = req->tv_sec * 1000 + req->tv_nsec / 1000000;
   // 必须在yield之前捕获shared_ptr，保持协程存活直到定时器触发
-  auto fiber_ptr = cur_fiber->shared_from_this();
-  iom->add_timer(timeout_ms, [iom, fiber_ptr]() { iom->schedule(fiber_ptr); });
+  iom->add_timer(timeout_ms, [iom, cur_fiber]() { iom->schedule(cur_fiber); });
   zcoroutine::Fiber::yield();
 
   return 0;

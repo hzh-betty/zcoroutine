@@ -1,8 +1,10 @@
 #ifndef ZCOROUTINE_THREAD_CONTEXT_H_
 #define ZCOROUTINE_THREAD_CONTEXT_H_
 
+#include "runtime/fiber.h"
 #include <array>
 #include <memory>
+
 
 namespace zcoroutine {
 
@@ -17,6 +19,42 @@ class Context;
 enum class StackMode;
 
 /**
+ * @brief 调度器上下文
+ * 管理调度器相关的状态，如主协程、当前协程、调度器协程等
+ */
+struct SchedulerContext {
+  std::weak_ptr<Fiber> main_fiber;      // 主协程（线程入口协程）
+  std::weak_ptr<Fiber> current_fiber;   // 当前执行的协程
+  std::weak_ptr<Fiber> scheduler_fiber; // 调度器协程
+  Scheduler *scheduler = nullptr;       // 当前调度器
+
+  static constexpr int kMaxCallStackDepth = 128;
+  std::array<std::weak_ptr<Fiber>, kMaxCallStackDepth> call_stack{};
+  int call_stack_size = 0;
+};
+
+/**
+ * @brief 共享栈上下文
+ * 管理共享栈模式下的栈状态、切换栈等
+ */
+struct SharedStackContext {
+  StackMode stack_mode; // 当前线程的栈模式
+  std::shared_ptr<SharedStack> shared_stack = nullptr; // 当前线程的共享栈
+  std::unique_ptr<SwitchStack> switch_stack = nullptr; // 专用切换栈
+  std::unique_ptr<Context> switch_context =
+      nullptr; // 切换上下文（运行在 switch_stack_ 上）
+  std::weak_ptr<Fiber> pending_fiber; // 待切换的目标协程
+};
+
+/**
+ * @brief Hook上下文
+ * 管理系统调用Hook的状态
+ */
+struct HookContext {
+  bool hook_enable = false; // Hook启用标志
+};
+
+/**
  * @brief 线程上下文类
  * 集中管理线程本地状态，包括主协程、当前协程、调度器协程、调度器指针等
  * 使用thread_local变量存储，每个线程独立
@@ -29,7 +67,8 @@ enum class StackMode;
  */
 class ThreadContext {
 public:
-  static constexpr int kMaxCallStackDepth = 128;
+  static constexpr int kMaxCallStackDepth =
+      SchedulerContext::kMaxCallStackDepth;
   /**
    * @brief 获取当前线程的上下文
    * @return 当前线程的ThreadContext指针，如果不存在则创建
@@ -40,37 +79,37 @@ public:
    * @brief 设置主协程
    * @param fiber 主协程指针
    */
-  static void set_main_fiber(Fiber *fiber);
+  static void set_main_fiber(Fiber::ptr fiber);
 
   /**
    * @brief 获取主协程
    * @return 主协程指针
    */
-  static Fiber *get_main_fiber();
+  static Fiber::ptr get_main_fiber();
 
   /**
    * @brief 设置当前执行的协程
    * @param fiber 协程指针
    */
-  static void set_current_fiber(Fiber *fiber);
+  static void set_current_fiber(Fiber::ptr fiber);
 
   /**
    * @brief 获取当前执行的协程
    * @return 当前协程指针
    */
-  static Fiber *get_current_fiber();
+  static Fiber::ptr get_current_fiber();
 
   /**
    * @brief 设置调度器协程
    * @param fiber 调度器协程指针
    */
-  static void set_scheduler_fiber(Fiber *fiber);
+  static void set_scheduler_fiber(Fiber::ptr fiber);
 
   /**
    * @brief 获取调度器协程
    * @return 调度器协程指针
    */
-  static Fiber *get_scheduler_fiber();
+  static Fiber::ptr get_scheduler_fiber();
 
   /**
    * @brief 设置当前调度器
@@ -129,13 +168,13 @@ public:
    * @brief 设置待切换的目标协程
    * @param fiber 目标协程
    */
-  static void set_pending_fiber(Fiber *fiber);
+  static void set_pending_fiber(Fiber::ptr fiber);
 
   /**
    * @brief 获取待切换的目标协程
    * @return 目标协程
    */
-  static Fiber *get_pending_fiber();
+  static Fiber::ptr get_pending_fiber();
 
   /**
    * @brief 设置Hook启用状态
@@ -149,30 +188,20 @@ public:
    */
   static bool is_hook_enabled();
 
-  static void push_call_stack(Fiber *fiber);
-  static Fiber *pop_call_stack();
-  static Fiber *top_call_stack();
+  static void push_call_stack(Fiber::ptr fiber);
+  static Fiber::ptr pop_call_stack();
+  static Fiber::ptr top_call_stack();
   static int call_stack_size();
 
 private:
-  Fiber *main_fiber_ = nullptr;      // 主协程（线程入口协程）
-  Fiber *current_fiber_ = nullptr;   // 当前执行的协程
-  Fiber *scheduler_fiber_ = nullptr; // 调度器协程
-  Scheduler *scheduler_ = nullptr;   // 当前调度器
+  // 调度器上下文
+  SchedulerContext scheduler_ctx_;
 
-  // 共享栈相关
-  StackMode stack_mode_; // 当前线程的栈模式
-  std::shared_ptr<SharedStack> shared_stack_ = nullptr; // 当前线程的共享栈
-  std::unique_ptr<SwitchStack> switch_stack_ = nullptr; // 专用切换栈
-  std::unique_ptr<Context> switch_context_ =
-      nullptr; // 切换上下文（运行在 switch_stack_ 上）
-  Fiber *pending_fiber_ = nullptr; // 待切换的目标协程
+  // 共享栈上下文
+  SharedStackContext shared_stack_ctx_;
 
-  // Hook相关
-  bool hook_enable_ = false; // Hook启用标志
-
-  std::array<Fiber *, kMaxCallStackDepth> call_stack_{};
-  int call_stack_size_ = 0;
+  // Hook上下文
+  HookContext hook_ctx_;
 };
 
 } // namespace zcoroutine

@@ -326,7 +326,7 @@ TEST_F(FdContextTest, PartialEventDeletion) {
 TEST_F(FdContextTest, SimulateReadableEvent) {
   // 写入数据使fd1可读
   const char *msg = "test";
-  write(fd2_, msg, strlen(msg));
+  ASSERT_EQ(write(fd2_, msg, strlen(msg)), strlen(msg));
 
   bool read_ready = false;
   ctx1_->add_event(FdContext::kRead);

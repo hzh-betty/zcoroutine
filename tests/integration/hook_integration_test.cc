@@ -223,7 +223,7 @@ TEST_F(HookIntegrationTest, ReadHookWithEAGAIN) {
   // 延迟写入
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   const char *msg = "test message";
-  write(socks[1], msg, strlen(msg));
+  ASSERT_EQ(write(socks[1], msg, strlen(msg)), strlen(msg));
 
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
   EXPECT_TRUE(read_done.load());
@@ -561,7 +561,7 @@ TEST_F(HookIntegrationTest, ConcurrentSocketIo) {
 
       // 写数据
       const char *msg = "test";
-      write(socks[0], msg, strlen(msg));
+      ASSERT_EQ(write(socks[0], msg, strlen(msg)), strlen(msg));
 
       // 读数据
       char buf[64];

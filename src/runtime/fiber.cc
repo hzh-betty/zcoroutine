@@ -17,9 +17,6 @@ Fiber::Fiber()
   // 主协程直接获取当前上下文
   context_->get_context();
 
-  // 设置为当前协程
-  ThreadContext::set_current_fiber(this);
-
   ZCOROUTINE_LOG_INFO("Main fiber created: name={}, id={}", name_, id_);
 }
 
@@ -28,16 +25,16 @@ Fiber::Fiber()
 // - 如果当前不是scheduler_fiber，切换回scheduler_fiber
 // - 如果当前是scheduler_fiber或没有scheduler_fiber，切换回main_fiber
 void Fiber::confirm_switch_target() {
-  Fiber *target_fiber = nullptr;
+  Fiber::ptr target_fiber = nullptr;
   int depth = ThreadContext::call_stack_size();
   if (depth >= 2) {
     ThreadContext::pop_call_stack();
     target_fiber = ThreadContext::top_call_stack();
   } else {
     // 如果当前是scheduler_fiber或没有scheduler_fiber，切换回main_fiber
-    Fiber *scheduler_fiber = ThreadContext::get_scheduler_fiber();
-    Fiber *main_fiber = ThreadContext::get_main_fiber();
-    if (scheduler_fiber && this != scheduler_fiber) {
+    auto scheduler_fiber = ThreadContext::get_scheduler_fiber();
+    auto main_fiber = ThreadContext::get_main_fiber();
+    if (scheduler_fiber && shared_from_this() != scheduler_fiber) {
       target_fiber = scheduler_fiber;
     } else if (main_fiber) {
       target_fiber = main_fiber;
@@ -46,7 +43,7 @@ void Fiber::confirm_switch_target() {
 
   if (target_fiber && target_fiber->context_) {
     // 使用统一的共享栈切换函数
-    co_swap(this, target_fiber);
+    co_swap(shared_from_this(), target_fiber);
   } else {
     ZCOROUTINE_LOG_ERROR(
         "Fiber confirm_switch_target: no valid target fiber to switch to");
@@ -56,7 +53,7 @@ void Fiber::confirm_switch_target() {
 // 统一的协程切换函数
 // 对于共享栈协程，先切换到专用 switch stack，然后执行栈保存/恢复操作
 // 整个过程不使用任何 magic number，完全 ABI 安全
-void Fiber::co_swap(Fiber *curr, Fiber *target) {
+void Fiber::co_swap(Fiber::ptr curr, Fiber::ptr target) {
   bool needs_switch_stack =
       curr->shared_ctx_ && curr->shared_ctx_->is_shared_stack() ||
       target->shared_ctx_ && target->shared_ctx_->is_shared_stack();
@@ -233,16 +230,17 @@ void Fiber::resume() {
   assert(state_ != State::kRunning && "Fiber is already running");
 
   // 获取当前协程上下文
-  Fiber *prev_fiber = get_this();
+  Fiber::ptr prev_fiber = get_this();
 
   // 如果没有当前协程，自动创建main_fiber
-  static thread_local std::unique_ptr<Fiber> t_implicit_main_fiber;
+  static thread_local Fiber::ptr t_implicit_main_fiber;
   if (!prev_fiber) {
     if (!t_implicit_main_fiber) {
-      t_implicit_main_fiber = std::unique_ptr<Fiber>(new Fiber());
-      ThreadContext::set_main_fiber(t_implicit_main_fiber.get());
+      t_implicit_main_fiber = Fiber::ptr(new Fiber());
+      ThreadContext::set_main_fiber(t_implicit_main_fiber);
+      ThreadContext::set_current_fiber(t_implicit_main_fiber);
     }
-    prev_fiber = t_implicit_main_fiber.get();
+    prev_fiber = t_implicit_main_fiber;
     set_this(prev_fiber);
   }
 
@@ -254,9 +252,9 @@ void Fiber::resume() {
                        id_, state_to_string(prev_state));
 
   // 调用栈入栈
-  ThreadContext::push_call_stack(this);
+  ThreadContext::push_call_stack(shared_from_this());
   // 使用统一的切换函数（处理共享栈保存和恢复）
-  co_swap(prev_fiber, this);
+  co_swap(prev_fiber, shared_from_this());
 
   // 协程执行完毕后会切换回来，恢复前一个协程
   set_this(prev_fiber);
@@ -268,7 +266,7 @@ void Fiber::resume() {
 }
 
 void Fiber::yield() {
-  Fiber *cur_fiber = ThreadContext::get_current_fiber();
+  Fiber::ptr cur_fiber = ThreadContext::get_current_fiber();
   if (!cur_fiber) {
     ZCOROUTINE_LOG_WARN("Fiber::yield failed: no current fiber to yield");
     return;
@@ -306,7 +304,7 @@ void Fiber::reset(std::function<void()> func) {
 }
 
 void Fiber::main_func() {
-  Fiber *cur_fiber = get_this();
+  Fiber::ptr cur_fiber = get_this();
   assert(cur_fiber && "No current fiber in main_func");
 
   ZCOROUTINE_LOG_DEBUG("Fiber main_func starting: name={}, id={}",
@@ -342,13 +340,15 @@ void Fiber::main_func() {
   // 如果协程终止且使用共享栈，清除占用标记
   if (cur_fiber->state_ == State::kTerminated &&
       cur_fiber->shared_ctx_->is_shared_stack()) {
-    cur_fiber->shared_ctx_->clear_occupy(cur_fiber);
+    cur_fiber->shared_ctx_->clear_occupy(cur_fiber.get());
   }
   cur_fiber->confirm_switch_target();
 }
 
-Fiber *Fiber::get_this() { return ThreadContext::get_current_fiber(); }
+Fiber::ptr Fiber::get_this() { return ThreadContext::get_current_fiber(); }
 
-void Fiber::set_this(Fiber *fiber) { ThreadContext::set_current_fiber(fiber); }
+void Fiber::set_this(Fiber::ptr fiber) {
+  ThreadContext::set_current_fiber(fiber);
+}
 
 } // namespace zcoroutine

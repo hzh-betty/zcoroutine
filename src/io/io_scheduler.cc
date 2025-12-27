@@ -121,14 +121,14 @@ int IoScheduler::add_event(int fd, FdContext::Event event,
     event_ctx.callback = callback;
   } else {
     // 如果没有回调，使用当前协程
-    Fiber *current_fiber = Fiber::get_this();
+    auto current_fiber = Fiber::get_this();
     if (!current_fiber) {
       ZCOROUTINE_LOG_ERROR("IoScheduler::add_event no callback and no current "
                            "fiber, fd={}, event={}",
                            fd, FdContext::event_to_string(event));
       return -1;
     }
-    event_ctx.fiber = current_fiber->shared_from_this();
+    event_ctx.fiber = current_fiber;
   }
 
   // 添加事件到FdContext

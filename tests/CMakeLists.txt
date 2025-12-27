@@ -1,0 +1,55 @@
+# 启用测试
+enable_testing()
+find_package(GTest REQUIRED)
+
+# 收集测试源文件
+file(GLOB TEST_UNIT_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/unit/*.cc)
+file(GLOB TEST_INTEGRATION_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/integration/*.cc)
+
+# 为每个单元测试文件创建独立的测试目标
+if(TEST_UNIT_SRCS)
+    foreach(test_source ${TEST_UNIT_SRCS})
+        # 获取文件名（不含路径和扩展名）
+        get_filename_component(test_name ${test_source} NAME_WE)
+        # 创建可执行文件
+        add_executable(${test_name} ${test_source})
+        # 链接库
+        target_link_libraries(${test_name} PRIVATE
+                zcoroutine_shared
+                GTest::gtest
+                pthread
+        )
+        # 添加为CTest测试
+        add_test(NAME ${test_name} COMMAND ${test_name})
+        message(STATUS "Configured unit test: ${test_name}")
+    endforeach()
+endif()
+
+# 为每个集成测试文件创建独立的测试目标
+if(TEST_INTEGRATION_SRCS)
+    foreach(test_source ${TEST_INTEGRATION_SRCS})
+        # 获取文件名（不含路径和扩展名）
+        get_filename_component(test_name ${test_source} NAME_WE)
+        # 创建可执行文件
+        add_executable(${test_name} ${test_source})
+        # 链接库
+        target_link_libraries(${test_name} PRIVATE
+                zcoroutine_shared
+                GTest::gtest
+                pthread
+        )
+        # 添加为CTest测试
+        add_test(NAME ${test_name} COMMAND ${test_name})
+        message(STATUS "Configured integration test: ${test_name}")
+    endforeach()
+endif()
+
+# Benchmark 可执行文件
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/http_server.cc)
+    add_executable(http_server_benchmark ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/http_server.cc)
+    target_link_libraries(http_server_benchmark PRIVATE
+            zcoroutine_shared
+            pthread
+    )
+    message(STATUS "Configured benchmark: http_server")
+endif()

@@ -158,13 +158,13 @@ public:
    * @brief 获取当前执行的协程
    * @return 当前协程指针
    */
-  static Fiber *get_this();
+  static Fiber::ptr get_this();
 
   /**
    * @brief 设置当前协程
    * @param fiber 协程指针
    */
-  static void set_this(Fiber *fiber);
+  static void set_this(Fiber::ptr fiber);
 
 private:
   // Scheduler需要访问私有构造函数创建main_fiber
@@ -187,7 +187,7 @@ private:
    * @param curr 当前协程
    * @param target 目标协程
    */
-  static void co_swap(Fiber *curr, Fiber *target);
+  static void co_swap(Fiber::ptr curr, Fiber::ptr target);
 
   std::string name_;            // 协程名称
   uint64_t id_ = 0;             // 协程唯一ID

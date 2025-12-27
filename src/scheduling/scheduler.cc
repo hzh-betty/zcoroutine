@@ -123,15 +123,16 @@ void Scheduler::run() {
   }
 
   // 创建主协程（保存线程的原始上下文）
-  Fiber main_fiber_obj; // 使用私有构造函数创建主协程
-  ThreadContext::set_main_fiber(&main_fiber_obj);
-  ThreadContext::set_current_fiber(&main_fiber_obj);
+  // 注意：必须使用shared_ptr管理，因为ThreadContext使用weak_ptr持有
+  Fiber::ptr main_fiber(new Fiber());
+  ThreadContext::set_main_fiber(main_fiber);
+  ThreadContext::set_current_fiber(main_fiber);
 
   // 创建调度器协程，它将运行调度循环
   auto scheduler_fiber =
       std::make_shared<Fiber>([this]() { this->schedule_loop(); },
                               StackAllocator::kDefaultStackSize, "scheduler");
-  ThreadContext::set_scheduler_fiber(scheduler_fiber.get());
+  ThreadContext::set_scheduler_fiber(scheduler_fiber);
 
   ZCOROUTINE_LOG_DEBUG("Scheduler[{}] main_fiber and scheduler_fiber created",
                        name_);

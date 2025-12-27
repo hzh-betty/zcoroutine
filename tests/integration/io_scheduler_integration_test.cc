@@ -93,7 +93,7 @@ TEST_F(IoSchedulerIntegrationTest, PipeIoEvent) {
   // 延迟写入数据
   io_scheduler->add_timer(100, [&]() {
     const char *msg = "Hello IoScheduler!";
-    write(pipe_fds[1], msg, strlen(msg));
+    ASSERT_EQ(write(pipe_fds[1], msg, strlen(msg)), strlen(msg));
   });
 
   // 等待读取完成
@@ -123,7 +123,7 @@ TEST_F(IoSchedulerIntegrationTest, FiberWithIoEvent) {
   io_scheduler->schedule([&]() {
     step = 1;
     const char *msg = "fiber message";
-    write(pipe_fds[1], msg, strlen(msg));
+    ASSERT_EQ(write(pipe_fds[1], msg, strlen(msg)), strlen(msg));
     step = 2;
   });
 
@@ -133,6 +133,8 @@ TEST_F(IoSchedulerIntegrationTest, FiberWithIoEvent) {
       char buffer[256];
       ssize_t n = read(pipe_fds[0], buffer, sizeof(buffer) - 1);
       if (n > 0) {
+        buffer[n] = '\0';
+        EXPECT_EQ(strcmp(buffer, "fiber message"), 0);
         step = 3;
       }
     });

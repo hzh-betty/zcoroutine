@@ -111,14 +111,17 @@ SwitchStack::SwitchStack(size_t stack_size) : stack_size_(stack_size) {
 
 void SwitchStack::switch_func() {
   while (true) {
-    Fiber *curr = ThreadContext::get_current_fiber();
-    Fiber *target = ThreadContext::get_pending_fiber();
+    auto curr_ptr = ThreadContext::get_current_fiber();
+    auto target_ptr = ThreadContext::get_pending_fiber();
     Context *switch_ctx = ThreadContext::get_switch_context();
 
-    if (!curr || !target) {
+    if (!curr_ptr || !target_ptr) {
       ZCOROUTINE_LOG_ERROR("switch_func: invalid curr or target fiber");
       return;
     }
+    
+    Fiber *curr = curr_ptr.get();
+    Fiber *target = target_ptr.get();
 
     ZCOROUTINE_LOG_DEBUG("switch_func: curr={}, target={}", curr->name(),
                          target->name());
@@ -171,7 +174,7 @@ void SwitchStack::switch_func() {
     }
 
     // 设置当前协程为目标
-    ThreadContext::set_current_fiber(target);
+    ThreadContext::set_current_fiber(target_ptr);
 
     // 切换到目标协程
     Context::swap_context(switch_ctx, target->context());
