@@ -1,8 +1,8 @@
 #ifndef ZCOROUTINE_RW_MUTEX_H_
 #define ZCOROUTINE_RW_MUTEX_H_
 
-#include <pthread.h>
 #include "util/noncopyable.h"
+#include <pthread.h>
 
 namespace zcoroutine {
 
@@ -12,69 +12,61 @@ class RWMutex;
 /**
  * @brief 读锁RAII封装
  */
-template<class T>
-class ReadLockGuard {
+template <class T> class ReadLockGuard {
 public:
-    explicit ReadLockGuard(T& rwlock)
-        : rwmutex_(rwlock), locked_(false) {
-        lock();
-    }
+  explicit ReadLockGuard(T &rwlock) : rwmutex_(rwlock), locked_(false) {
+    lock();
+  }
 
-    ~ReadLockGuard() {
-        unlock();
-    }
+  ~ReadLockGuard() { unlock(); }
 
-    void lock() {
-        if (!locked_) {
-            rwmutex_.rdlock();
-            locked_ = true;
-        }
+  void lock() {
+    if (!locked_) {
+      rwmutex_.rdlock();
+      locked_ = true;
     }
+  }
 
-    void unlock() {
-        if (locked_) {
-            rwmutex_.unlock();
-            locked_ = false;
-        }
+  void unlock() {
+    if (locked_) {
+      rwmutex_.unlock();
+      locked_ = false;
     }
+  }
 
 private:
-    T& rwmutex_;                    // 读写锁对象
-    bool locked_;      // 锁定状态
+  T &rwmutex_;  // 读写锁对象
+  bool locked_; // 锁定状态
 };
 
 /**
  * @brief 写锁RAII封装
  */
-template<class T>
-class WriteLockGuard {
+template <class T> class WriteLockGuard {
 public:
-    explicit WriteLockGuard(T& rwlock)
-        : rwmutex_(rwlock), locked_(false) {
-        lock();
-    }
+  explicit WriteLockGuard(T &rwlock) : rwmutex_(rwlock), locked_(false) {
+    lock();
+  }
 
-    ~WriteLockGuard() {
-        unlock();
-    }
+  ~WriteLockGuard() { unlock(); }
 
-    void lock() {
-        if (!locked_) {
-            rwmutex_.wrlock();
-            locked_ = true;
-        }
+  void lock() {
+    if (!locked_) {
+      rwmutex_.wrlock();
+      locked_ = true;
     }
+  }
 
-    void unlock() {
-        if (locked_) {
-            rwmutex_.unlock();
-            locked_ = false;
-        }
+  void unlock() {
+    if (locked_) {
+      rwmutex_.unlock();
+      locked_ = false;
     }
+  }
 
 private:
-    T& rwmutex_;                    // 读写锁对象
-    bool locked_;      // 锁定状态
+  T &rwmutex_;  // 读写锁对象
+  bool locked_; // 锁定状态
 };
 
 /**
@@ -84,40 +76,30 @@ private:
  */
 class RWMutex : public NonCopyable {
 public:
-    using ReadLock = ReadLockGuard<RWMutex>;
-    using WriteLock = WriteLockGuard<RWMutex>;
+  using ReadLock = ReadLockGuard<RWMutex>;
+  using WriteLock = WriteLockGuard<RWMutex>;
 
-    RWMutex() {
-        pthread_rwlock_init(&rwlock_, nullptr);
-    }
+  RWMutex() { pthread_rwlock_init(&rwlock_, nullptr); }
 
-    ~RWMutex() {
-        pthread_rwlock_destroy(&rwlock_);
-    }
+  ~RWMutex() { pthread_rwlock_destroy(&rwlock_); }
 
-    /**
-     * @brief 获取读锁
-     */
-    void rdlock() {
-        pthread_rwlock_rdlock(&rwlock_);
-    }
+  /**
+   * @brief 获取读锁
+   */
+  void rdlock() { pthread_rwlock_rdlock(&rwlock_); }
 
-    /**
-     * @brief 获取写锁
-     */
-    void wrlock() {
-        pthread_rwlock_wrlock(&rwlock_);
-    }
+  /**
+   * @brief 获取写锁
+   */
+  void wrlock() { pthread_rwlock_wrlock(&rwlock_); }
 
-    /**
-     * @brief 解锁
-     */
-    void unlock() {
-        pthread_rwlock_unlock(&rwlock_);
-    }
+  /**
+   * @brief 解锁
+   */
+  void unlock() { pthread_rwlock_unlock(&rwlock_); }
 
 private:
-    pthread_rwlock_t rwlock_{};     // 底层读写锁对象
+  pthread_rwlock_t rwlock_{}; // 底层读写锁对象
 };
 
 } // namespace zcoroutine

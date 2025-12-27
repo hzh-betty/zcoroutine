@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.18)
 project(zcoroutine LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_EXPORT_COMPILE_COMMANDS 1)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # 日志库
 add_subdirectory(zlog)
 

@@ -1,11 +1,11 @@
 #ifndef ZCOROUTINE_HOOK_H_
 #define ZCOROUTINE_HOOK_H_
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/uio.h>
-#include <ctime>
 #include <cstdint>
+#include <ctime>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/uio.h>
 
 namespace zcoroutine {
 /**
@@ -31,7 +31,7 @@ void set_hook_enable(bool enable);
  */
 void hook_init();
 
-}  // namespace zcoroutine
+} // namespace zcoroutine
 
 // 以下是被Hook的系统调用函数声明
 extern "C" {
@@ -53,10 +53,12 @@ extern socket_func socket_f;
 typedef int (*socketpair_func)(int domain, int type, int protocol, int sv[2]);
 extern socketpair_func socketpair_f;
 
-typedef int (*connect_func)(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+typedef int (*connect_func)(int sockfd, const struct sockaddr *addr,
+                            socklen_t addrlen);
 extern connect_func connect_f;
 
-typedef int (*accept_func)(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+typedef int (*accept_func)(int sockfd, struct sockaddr *addr,
+                           socklen_t *addrlen);
 extern accept_func accept_f;
 
 // IO系列
@@ -70,7 +72,7 @@ typedef ssize_t (*recv_func)(int sockfd, void *buf, size_t len, int flags);
 extern recv_func recv_f;
 
 typedef ssize_t (*recvfrom_func)(int sockfd, void *buf, size_t len, int flags,
-                                  struct sockaddr *src_addr, socklen_t *addrlen);
+                                 struct sockaddr *src_addr, socklen_t *addrlen);
 extern recvfrom_func recvfrom_f;
 
 typedef ssize_t (*recvmsg_func)(int sockfd, struct msghdr *msg, int flags);
@@ -82,14 +84,17 @@ extern write_func write_f;
 typedef ssize_t (*writev_func)(int fd, const struct iovec *iov, int iovcnt);
 extern writev_func writev_f;
 
-typedef ssize_t (*send_func)(int sockfd, const void *buf, size_t len, int flags);
+typedef ssize_t (*send_func)(int sockfd, const void *buf, size_t len,
+                             int flags);
 extern send_func send_f;
 
-typedef ssize_t (*sendto_func)(int sockfd, const void *buf, size_t len, int flags,
-                                const struct sockaddr *dest_addr, socklen_t addrlen);
+typedef ssize_t (*sendto_func)(int sockfd, const void *buf, size_t len,
+                               int flags, const struct sockaddr *dest_addr,
+                               socklen_t addrlen);
 extern sendto_func sendto_f;
 
-typedef ssize_t (*sendmsg_func)(int sockfd, const struct msghdr *msg, int flags);
+typedef ssize_t (*sendmsg_func)(int sockfd, const struct msghdr *msg,
+                                int flags);
 extern sendmsg_func sendmsg_f;
 
 // fcntl和ioctl
@@ -105,13 +110,13 @@ extern close_func close_f;
 
 // setsockopt/getsockopt
 typedef int (*setsockopt_func)(int sockfd, int level, int optname,
-                                const void *optval, socklen_t optlen);
+                               const void *optval, socklen_t optlen);
 extern setsockopt_func setsockopt_f;
 
-typedef int (*getsockopt_func)(int sockfd, int level, int optname,
-                                void *optval, socklen_t *optlen);
+typedef int (*getsockopt_func)(int sockfd, int level, int optname, void *optval,
+                               socklen_t *optlen);
 extern getsockopt_func getsockopt_f;
 
-}  // extern "C"
+} // extern "C"
 
-#endif  // ZCOROUTINE_HOOK_H_
+#endif // ZCOROUTINE_HOOK_H_

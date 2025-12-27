@@ -1,13 +1,13 @@
 #ifndef ZCOROUTINE_TASK_QUEUE_H_
 #define ZCOROUTINE_TASK_QUEUE_H_
 
-#include <deque>
-#include <memory>
-#include <functional>
-#include <atomic>
 #include "runtime/fiber.h"
-#include "sync/spinlock.h"
 #include "sync/semaphore.h"
+#include "sync/spinlock.h"
+#include <atomic>
+#include <deque>
+#include <functional>
+#include <memory>
 
 namespace zcoroutine {
 
@@ -16,29 +16,27 @@ namespace zcoroutine {
  * 任务可以是协程或回调函数
  */
 struct Task {
-    Fiber::ptr fiber;               // 任务协程
-    std::function<void()> callback; // 任务回调函数
+  Fiber::ptr fiber;               // 任务协程
+  std::function<void()> callback; // 任务回调函数
 
-    Task() = default;
+  Task() = default;
 
-    explicit Task(Fiber::ptr f) : fiber(std::move(f)) {}
+  explicit Task(Fiber::ptr f) : fiber(std::move(f)) {}
 
-    explicit Task(std::function<void()> cb) : callback(std::move(cb)) {}
+  explicit Task(std::function<void()> cb) : callback(std::move(cb)) {}
 
-    /**
-     * @brief 重置任务
-     */
-    void reset() {
-        fiber = nullptr;
-        callback = nullptr;
-    }
+  /**
+   * @brief 重置任务
+   */
+  void reset() {
+    fiber = nullptr;
+    callback = nullptr;
+  }
 
-    /**
-     * @brief 任务是否有效
-     */
-    bool is_valid() const {
-        return fiber != nullptr || callback != nullptr;
-    }
+  /**
+   * @brief 任务是否有效
+   */
+  bool is_valid() const { return fiber != nullptr || callback != nullptr; }
 };
 
 /**
@@ -48,45 +46,45 @@ struct Task {
  */
 class TaskQueue {
 public:
-    TaskQueue() = default;
-    ~TaskQueue() = default;
+  TaskQueue() = default;
+  ~TaskQueue() = default;
 
-    /**
-     * @brief 添加任务
-     * @param task 任务对象
-     */
-    void push(const Task& task);
+  /**
+   * @brief 添加任务
+   * @param task 任务对象
+   */
+  void push(const Task &task);
 
-    /**
-     * @brief 阻塞取出任务
-     * @param task 输出参数，取出的任务
-     * @return true表示成功取出，false表示队列已停止
-     */
-    bool pop(Task& task);
+  /**
+   * @brief 阻塞取出任务
+   * @param task 输出参数，取出的任务
+   * @return true表示成功取出，false表示队列已停止
+   */
+  bool pop(Task &task);
 
-    /**
-     * @brief 获取队列大小
-     * @return 队列中任务数量
-     */
-    size_t size() const;
+  /**
+   * @brief 获取队列大小
+   * @return 队列中任务数量
+   */
+  size_t size() const;
 
-    /**
-     * @brief 判断队列是否为空
-     * @return true表示空，false表示非空
-     */
-    bool empty() const;
+  /**
+   * @brief 判断队列是否为空
+   * @return true表示空，false表示非空
+   */
+  bool empty() const;
 
-    /**
-     * @brief 停止队列
-     * 唤醒所有等待的线程
-     */
-    void stop();
+  /**
+   * @brief 停止队列
+   * 唤醒所有等待的线程
+   */
+  void stop();
 
 private:
-    mutable Spinlock spinlock_;             // 自旋锁保护队列
-    Semaphore semaphore_;                   // Linux 信号量
-    std::deque<Task> tasks_;                // 任务队列
-    std::atomic<bool> stopped_{false};      // 停止标志
+  mutable Spinlock spinlock_;        // 自旋锁保护队列
+  Semaphore semaphore_;              // Linux 信号量
+  std::deque<Task> tasks_;           // 任务队列
+  std::atomic<bool> stopped_{false}; // 停止标志
 };
 
 } // namespace zcoroutine

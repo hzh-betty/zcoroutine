@@ -1,377 +1,418 @@
 #include "io/io_scheduler.h"
 #include "io/fd_context_table.h"
 #include "util/zcoroutine_logger.h"
-#include <unistd.h>
-#include <fcntl.h>
-#include <cstring>
 #include <cerrno>
+#include <cstring>
+#include <fcntl.h>
+#include <unistd.h>
 
 namespace zcoroutine {
-    FdContext::ptr IoScheduler::get_fd_context(int fd, bool auto_create) {
-        if (auto_create) {
-            return fd_context_table_->get_or_create(fd);
-        }
-        return fd_context_table_->get(fd);
+FdContext::ptr IoScheduler::get_fd_context(int fd, bool auto_create) {
+  if (auto_create) {
+    return fd_context_table_->get_or_create(fd);
+  }
+  return fd_context_table_->get(fd);
+}
+
+IoScheduler::IoScheduler(int thread_count, const std::string &name)
+    : Scheduler(thread_count, name) {
+  ZCOROUTINE_LOG_INFO(
+      "IoScheduler::IoScheduler initializing name={}, thread_count={}", name,
+      thread_count);
+
+  // 创建 Epoll
+  constexpr size_t kDefaultMaxEvents = 256;
+  epoll_poller_ = std::make_shared<EpollPoller>(kDefaultMaxEvents);
+
+  // 创建定时器管理器
+  timer_manager_ = std::make_shared<TimerManager>();
+
+  // 设置定时器插入回调：当有新定时器插入到最前面时，唤醒IO线程
+  timer_manager_->set_on_timer_inserted_at_front([this]() { this->wake_up(); });
+
+  // 创建 FdContext 表
+  fd_context_table_ = std::make_unique<FdContextTable>();
+
+  // 创建唤醒管道
+  int ret = pipe(wake_fd_);
+  if (ret < 0) {
+    ZCOROUTINE_LOG_ERROR(
+        "IoScheduler::IoScheduler pipe creation failed, errno={}, error={}",
+        errno, strerror(errno));
+    return;
+  }
+
+  // 设置非阻塞
+  fcntl(wake_fd_[0], F_SETFL, O_NONBLOCK);
+  fcntl(wake_fd_[1], F_SETFL, O_NONBLOCK);
+
+  // 将唤醒管道添加到epoll
+  epoll_poller_->add_event(wake_fd_[0], EPOLLIN, nullptr);
+
+  ZCOROUTINE_LOG_INFO("IoScheduler::IoScheduler initialized successfully, "
+                      "name={}, thread_count={}, wake_fd=[{}, {}]",
+                      name, thread_count, wake_fd_[0], wake_fd_[1]);
+}
+
+IoScheduler::~IoScheduler() {
+  ZCOROUTINE_LOG_DEBUG("IoScheduler::~IoScheduler destroying");
+  stop();
+
+  if (wake_fd_[0] >= 0) {
+    close(wake_fd_[0]);
+    ZCOROUTINE_LOG_DEBUG("IoScheduler::~IoScheduler closed wake_fd[0]={}",
+                         wake_fd_[0]);
+  }
+  if (wake_fd_[1] >= 0) {
+    close(wake_fd_[1]);
+    ZCOROUTINE_LOG_DEBUG("IoScheduler::~IoScheduler closed wake_fd[1]={}",
+                         wake_fd_[1]);
+  }
+
+  ZCOROUTINE_LOG_INFO("IoScheduler::~IoScheduler destroyed");
+}
+
+void IoScheduler::start() {
+  ZCOROUTINE_LOG_INFO("IoScheduler::start starting scheduler");
+
+  // 启动基类调度器
+  Scheduler::start();
+
+  // 启动IO线程
+  io_thread_ =
+      std::make_unique<std::thread>([this]() { this->io_thread_func(); });
+
+  ZCOROUTINE_LOG_INFO("IoScheduler::start scheduler and IO thread started");
+}
+
+void IoScheduler::stop() {
+
+  // 先停止基类调度器（会等待所有任务完成）
+  Scheduler::stop();
+
+  // 唤醒IO线程
+  wake_up();
+
+  // 等待IO线程退出
+  if (io_thread_ && io_thread_->joinable()) {
+    io_thread_->join();
+    ZCOROUTINE_LOG_DEBUG("IoScheduler::stop IO thread joined");
+  }
+
+  ZCOROUTINE_LOG_INFO("IoScheduler::stop stopped successfully");
+}
+
+int IoScheduler::add_event(int fd, FdContext::Event event,
+                           std::function<void()> callback) {
+  ZCOROUTINE_LOG_DEBUG(
+      "IoScheduler::add_event fd={}, event={}, has_callback={}", fd,
+      FdContext::event_to_string(event), callback != nullptr);
+
+  FdContext::ptr fd_ctx = get_fd_context(fd, true);
+  if (!fd_ctx) {
+    ZCOROUTINE_LOG_ERROR(
+        "IoScheduler::add_event failed to get FdContext, fd={}", fd);
+    return -1;
+  }
+
+  // 设置回调或协程
+  FdContext::EventContext &event_ctx = fd_ctx->get_event_context(event);
+  if (callback) {
+    event_ctx.callback = callback;
+  } else {
+    // 如果没有回调，使用当前协程
+    Fiber *current_fiber = Fiber::get_this();
+    if (!current_fiber) {
+      ZCOROUTINE_LOG_ERROR("IoScheduler::add_event no callback and no current "
+                           "fiber, fd={}, event={}",
+                           fd, FdContext::event_to_string(event));
+      return -1;
+    }
+    event_ctx.fiber = current_fiber->shared_from_this();
+  }
+
+  // 添加事件到FdContext
+  int new_events = fd_ctx->add_event(event);
+
+  // 更新epoll
+  int op = (fd_ctx->events() == event) ? EPOLL_CTL_ADD : EPOLL_CTL_MOD;
+  int ret = 0;
+  if (op == EPOLL_CTL_ADD) {
+    ret = epoll_poller_->add_event(fd, new_events, fd_ctx.get());
+  } else {
+    ret = epoll_poller_->mod_event(fd, new_events, fd_ctx.get());
+  }
+
+  if (ret < 0) {
+    ZCOROUTINE_LOG_ERROR(
+        "IoScheduler::add_event epoll operation failed, fd={}, event={}, op={}",
+        fd, FdContext::event_to_string(event),
+        op == EPOLL_CTL_ADD ? "ADD" : "MOD");
+    fd_ctx->del_event(event);
+    return -1;
+  }
+
+  ZCOROUTINE_LOG_DEBUG(
+      "IoScheduler::add_event success, fd={}, event={}, new_events={}", fd,
+      FdContext::event_to_string(event), new_events);
+  return 0;
+}
+
+int IoScheduler::del_event(int fd, FdContext::Event event) {
+  ZCOROUTINE_LOG_DEBUG("IoScheduler::del_event fd={}, event={}", fd,
+                       FdContext::event_to_string(event));
+
+  auto self = this;
+  FdContext::ptr fd_ctx = self->get_fd_context(fd, false);
+  if (!fd_ctx) {
+    ZCOROUTINE_LOG_DEBUG("IoScheduler::del_event FdContext not found, fd={}",
+                         fd);
+    return 0;
+  }
+
+  // 删除事件
+  int new_events = fd_ctx->del_event(event);
+
+  // 更新epoll
+  int ret = 0;
+  if (new_events == FdContext::kNone) {
+    ret = epoll_poller_->del_event(fd);
+  } else {
+    ret = epoll_poller_->mod_event(fd, new_events, fd_ctx.get());
+  }
+
+  if (ret < 0) {
+    ZCOROUTINE_LOG_ERROR(
+        "IoScheduler::del_event epoll operation failed, fd={}, errno={}", fd,
+        errno);
+    return -1;
+  }
+
+  ZCOROUTINE_LOG_DEBUG(
+      "IoScheduler::del_event success, fd={}, event={}, remaining_events={}",
+      fd, FdContext::event_to_string(event), new_events);
+  return 0;
+}
+
+int IoScheduler::cancel_event(int fd, FdContext::Event event) {
+  ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_event fd={}, event={}", fd,
+                       FdContext::event_to_string(event));
+
+  auto self = this;
+  FdContext::ptr fd_ctx = self->get_fd_context(fd, false);
+  if (!fd_ctx) {
+    ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_event FdContext not found, fd={}",
+                         fd);
+    return 0;
+  }
+
+  // 取消事件
+  int new_events = fd_ctx->cancel_event(event);
+
+  // 更新epoll
+  int ret = 0;
+  if (new_events == FdContext::kNone) {
+    ret = epoll_poller_->del_event(fd);
+  } else {
+    ret = epoll_poller_->mod_event(fd, new_events, fd_ctx.get());
+  }
+
+  if (ret < 0) {
+    ZCOROUTINE_LOG_ERROR(
+        "IoScheduler::cancel_event epoll operation failed, fd={}, errno={}", fd,
+        errno);
+    return -1;
+  }
+
+  ZCOROUTINE_LOG_DEBUG(
+      "IoScheduler::cancel_event success, fd={}, event={}, remaining_events={}",
+      fd, FdContext::event_to_string(event), new_events);
+  return 0;
+}
+
+int IoScheduler::cancel_all(int fd) {
+  ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_all fd={}", fd);
+
+  auto self = this;
+  FdContext::ptr fd_ctx = self->get_fd_context(fd, false);
+  if (!fd_ctx) {
+    ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_all FdContext not found, fd={}",
+                         fd);
+    return 0;
+  }
+
+  // 取消所有事件
+  fd_ctx->cancel_all();
+
+  // 从 epoll 中删除
+  int ret = epoll_poller_->del_event(fd);
+  if (ret < 0) {
+    ZCOROUTINE_LOG_ERROR(
+        "IoScheduler::cancel_all epoll del_event failed, fd={}, errno={}", fd,
+        errno);
+    return -1;
+  }
+
+  ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_all success, fd={}", fd);
+  return 0;
+}
+
+Timer::ptr IoScheduler::add_timer(uint64_t timeout,
+                                  std::function<void()> callback,
+                                  bool recurring) {
+  ZCOROUTINE_LOG_DEBUG("IoScheduler::add_timer timeout={}ms, recurring={}",
+                       timeout, recurring);
+  // 直接调用 TimerManager，它会通过回调自动唤醒IO线程
+  return timer_manager_->add_timer(timeout, std::move(callback), recurring);
+}
+
+Timer::ptr IoScheduler::add_condition_timer(uint64_t timeout,
+                                            std::function<void()> callback,
+                                            std::weak_ptr<void> weak_cond,
+                                            bool recurring) {
+  ZCOROUTINE_LOG_DEBUG(
+      "IoScheduler::add_condition_timer timeout={}ms, recurring={}", timeout,
+      recurring);
+  // 直接调用 TimerManager，它会通过回调自动唤醒IO线程
+  return timer_manager_->add_condition_timer(timeout, std::move(callback),
+                                             weak_cond, recurring);
+}
+
+void IoScheduler::trigger_event(int fd, FdContext::Event event) {
+  FdContext::ptr fd_ctx = get_fd_context(fd, false);
+  if (!fd_ctx) {
+    ZCOROUTINE_LOG_WARN("IoScheduler::trigger_event FdContext not found, fd={}",
+                        fd);
+    return;
+  }
+
+  ZCOROUTINE_LOG_DEBUG("IoScheduler::trigger_event fd={}, event={}", fd,
+                       FdContext::event_to_string(event));
+
+  // 先从 FdContext 中取出并清空 EventContext，
+  // 避免回调中重新注册时被后续 del_event 清空
+  std::function<void()> callback;
+  Fiber::ptr fiber;
+  {
+    // 锁定 fd_ctx 并取出事件上下文
+    FdContext::EventContext &ctx = fd_ctx->get_event_context(event);
+    callback = std::move(ctx.callback);
+    fiber = std::move(ctx.fiber);
+  }
+
+  del_event(fd_ctx->fd(), event);
+
+  // 最后触发回调或调度协程（epoll已更新，回调中可以安全地重新注册）
+  if (callback) {
+    ZCOROUTINE_LOG_DEBUG(
+        "IoScheduler::trigger_event executing callback: fd={}, event={}", fd,
+        FdContext::event_to_string(event));
+    callback();
+  } else if (fiber) {
+    ZCOROUTINE_LOG_DEBUG("IoScheduler::trigger_event scheduling fiber: fd={}, "
+                         "event={}, fiber_id={}",
+                         fd, FdContext::event_to_string(event), fiber->id());
+    schedule(fiber);
+  } else {
+    ZCOROUTINE_LOG_WARN(
+        "IoScheduler::trigger_event no callback or fiber: fd={}, event={}", fd,
+        FdContext::event_to_string(event));
+  }
+}
+
+void IoScheduler::io_thread_func() {
+  ZCOROUTINE_LOG_INFO("IoScheduler::io_thread_func IO thread started");
+
+  std::vector<epoll_event> events;
+
+  while (!stopping_.load(std::memory_order_relaxed)) {
+    // 获取下一个定时器超时时间
+    int timeout = timer_manager_->get_next_timeout();
+    if (timeout < 0) {
+      timeout = 5000; // 默认5秒
+    }
+    ZCOROUTINE_LOG_DEBUG(
+        "IoScheduler::io_thread_func waiting for events, timeout={}ms",
+        timeout);
+
+    // 等待IO事件
+    int nfds = epoll_poller_->wait(timeout, events);
+
+    if (nfds < 0) {
+      ZCOROUTINE_LOG_ERROR(
+          "IoScheduler::io_thread_func epoll_wait failed, errno={}, error={}",
+          errno, strerror(errno));
+      continue;
     }
 
-    IoScheduler::IoScheduler(int thread_count, const std::string &name)
-        : Scheduler(thread_count, name) {
-        ZCOROUTINE_LOG_INFO("IoScheduler::IoScheduler initializing name={}, thread_count={}", name, thread_count);
-    
-        // 创建 Epoll
-        constexpr size_t kDefaultMaxEvents = 256;
-        epoll_poller_ = std::make_shared<EpollPoller>(kDefaultMaxEvents);
-    
-        // 创建定时器管理器
-        timer_manager_ = std::make_shared<TimerManager>();
-            
-        // 设置定时器插入回调：当有新定时器插入到最前面时，唤醒IO线程
-        timer_manager_->set_on_timer_inserted_at_front([this]() {
-            this->wake_up();
-        });
-    
-        // 创建 FdContext 表
-        fd_context_table_ = std::make_unique<FdContextTable>();
-
-        // 创建唤醒管道
-        int ret = pipe(wake_fd_);
-        if (ret < 0) {
-            ZCOROUTINE_LOG_ERROR("IoScheduler::IoScheduler pipe creation failed, errno={}, error={}",
-                                 errno, strerror(errno));
-            return;
-        }
-
-        // 设置非阻塞
-        fcntl(wake_fd_[0], F_SETFL, O_NONBLOCK);
-        fcntl(wake_fd_[1], F_SETFL, O_NONBLOCK);
-
-        // 将唤醒管道添加到epoll
-        epoll_poller_->add_event(wake_fd_[0], EPOLLIN, nullptr);
-
-        ZCOROUTINE_LOG_INFO(
-            "IoScheduler::IoScheduler initialized successfully, name={}, thread_count={}, wake_fd=[{}, {}]",
-            name, thread_count, wake_fd_[0], wake_fd_[1]);
+    if (nfds > 0) {
+      ZCOROUTINE_LOG_DEBUG(
+          "IoScheduler::io_thread_func epoll_wait returned nfds={}", nfds);
     }
 
-    IoScheduler::~IoScheduler() {
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::~IoScheduler destroying");
-        stop();
+    // 处理就绪事件
+    for (int i = 0; i < nfds; ++i) {
+      epoll_event &ev = events[i];
 
-        if (wake_fd_[0] >= 0) {
-            close(wake_fd_[0]);
-            ZCOROUTINE_LOG_DEBUG("IoScheduler::~IoScheduler closed wake_fd[0]={}", wake_fd_[0]);
+      // 检查是否是唤醒事件
+      if (ev.data.ptr == nullptr) {
+        char dummy[256];
+        while (read(wake_fd_[0], dummy, sizeof(dummy)) > 0) {
         }
-        if (wake_fd_[1] >= 0) {
-            close(wake_fd_[1]);
-            ZCOROUTINE_LOG_DEBUG("IoScheduler::~IoScheduler closed wake_fd[1]={}", wake_fd_[1]);
-        }
+        ZCOROUTINE_LOG_DEBUG(
+            "IoScheduler::io_thread_func wake up event received");
+        continue;
+      }
 
-        ZCOROUTINE_LOG_INFO("IoScheduler::~IoScheduler destroyed");
+      // 处理IO事件
+      FdContext *fd_ctx = static_cast<FdContext *>(ev.data.ptr);
+      int fd = fd_ctx->fd();
+
+      if (ev.events & EPOLLIN) {
+        ZCOROUTINE_LOG_DEBUG(
+            "IoScheduler::io_thread_func triggering READ event, fd={}", fd);
+        trigger_event(fd, FdContext::kRead);
+      }
+      if (ev.events & EPOLLOUT) {
+        ZCOROUTINE_LOG_DEBUG(
+            "IoScheduler::io_thread_func triggering WRITE event, fd={}", fd);
+        trigger_event(fd, FdContext::kWrite);
+      }
+      if (ev.events & (EPOLLERR | EPOLLHUP)) {
+        ZCOROUTINE_LOG_WARN(
+            "IoScheduler::io_thread_func error/hup event, fd={}", fd);
+        // 错误事件，同时触发读写
+        trigger_event(fd, FdContext::kRead);
+        trigger_event(fd, FdContext::kWrite);
+      }
     }
 
-    void IoScheduler::start() {
-        ZCOROUTINE_LOG_INFO("IoScheduler::start starting scheduler");
-
-        // 启动基类调度器
-        Scheduler::start();
-
-        // 启动IO线程
-        io_thread_ = std::make_unique<std::thread>([this]() {
-            this->io_thread_func();
-        });
-
-        ZCOROUTINE_LOG_INFO("IoScheduler::start scheduler and IO thread started");
+    // 处理超时定时器
+    auto expired_cbs = timer_manager_->list_expired_callbacks();
+    if (!expired_cbs.empty()) {
+      ZCOROUTINE_LOG_DEBUG(
+          "IoScheduler::io_thread_func processing {} expired timers",
+          expired_cbs.size());
     }
-
-    void IoScheduler::stop() {
-
-        // 先停止基类调度器（会等待所有任务完成）
-        Scheduler::stop();
-
-        // 唤醒IO线程
-        wake_up();
-
-        // 等待IO线程退出
-        if (io_thread_ && io_thread_->joinable()) {
-            io_thread_->join();
-            ZCOROUTINE_LOG_DEBUG("IoScheduler::stop IO thread joined");
-        }
-
-        ZCOROUTINE_LOG_INFO("IoScheduler::stop stopped successfully");
+    for (const auto &cb : expired_cbs) {
+      Scheduler::schedule(cb);
     }
+  }
 
+  ZCOROUTINE_LOG_INFO("IoScheduler::io_thread_func IO thread exiting");
+}
 
-    int IoScheduler::add_event(int fd, FdContext::Event event, std::function<void()> callback) {
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::add_event fd={}, event={}, has_callback={}", fd, FdContext::event_to_string(event), callback != nullptr);
+void IoScheduler::wake_up() const {
+  char dummy = 'W';
+  ssize_t n = write(wake_fd_[1], &dummy, 1);
+  if (n != 1) {
+    ZCOROUTINE_LOG_ERROR(
+        "IoScheduler::wake_up write failed, errno={}, error={}", errno,
+        strerror(errno));
+  }
+}
 
-        FdContext::ptr fd_ctx = get_fd_context(fd, true);
-        if (!fd_ctx) {
-            ZCOROUTINE_LOG_ERROR("IoScheduler::add_event failed to get FdContext, fd={}", fd);
-            return -1;
-        }
-
-        // 设置回调或协程
-        FdContext::EventContext &event_ctx = fd_ctx->get_event_context(event);
-        if (callback) {
-            event_ctx.callback = callback;
-        }
-        else {
-            // 如果没有回调，使用当前协程
-            Fiber* current_fiber = Fiber::get_this();
-            if (!current_fiber) {
-                ZCOROUTINE_LOG_ERROR("IoScheduler::add_event no callback and no current fiber, fd={}, event={}", fd, FdContext::event_to_string(event));
-                return -1;
-            }
-            event_ctx.fiber = current_fiber->shared_from_this();
-        }
-
-        // 添加事件到FdContext
-        int new_events = fd_ctx->add_event(event);
-
-        // 更新epoll
-        int op = (fd_ctx->events() == event) ? EPOLL_CTL_ADD : EPOLL_CTL_MOD;
-        int ret = 0;
-        if (op == EPOLL_CTL_ADD) {
-            ret = epoll_poller_->add_event(fd, new_events, fd_ctx.get());
-        }
-        else {
-            ret = epoll_poller_->mod_event(fd, new_events, fd_ctx.get());
-        }
-
-        if (ret < 0) {
-            ZCOROUTINE_LOG_ERROR("IoScheduler::add_event epoll operation failed, fd={}, event={}, op={}",
-                                 fd, FdContext::event_to_string(event), op == EPOLL_CTL_ADD ? "ADD" : "MOD");
-            fd_ctx->del_event(event);
-            return -1;
-        }
-
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::add_event success, fd={}, event={}, new_events={}",
-                             fd, FdContext::event_to_string(event), new_events);
-        return 0;
-    }
-
-    int IoScheduler::del_event(int fd, FdContext::Event event)  {
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::del_event fd={}, event={}", fd, FdContext::event_to_string(event));
-
-        auto self = this;
-        FdContext::ptr fd_ctx = self->get_fd_context(fd, false);
-        if (!fd_ctx) {
-            ZCOROUTINE_LOG_DEBUG("IoScheduler::del_event FdContext not found, fd={}", fd);
-            return 0;
-        }
-
-        // 删除事件
-        int new_events = fd_ctx->del_event(event);
-
-        // 更新epoll
-        int ret = 0;
-        if (new_events == FdContext::kNone) {
-            ret = epoll_poller_->del_event(fd);
-        }
-        else {
-            ret = epoll_poller_->mod_event(fd, new_events, fd_ctx.get());
-        }
-
-        if (ret < 0) {
-            ZCOROUTINE_LOG_ERROR("IoScheduler::del_event epoll operation failed, fd={}, errno={}",
-                                 fd, errno);
-            return -1;
-        }
-
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::del_event success, fd={}, event={}, remaining_events={}",
-                             fd, FdContext::event_to_string(event), new_events);
-        return 0;
-    }
-
-    int IoScheduler::cancel_event(int fd, FdContext::Event event)  {
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_event fd={}, event={}", fd, FdContext::event_to_string(event));
-
-        auto self = this;
-        FdContext::ptr fd_ctx = self->get_fd_context(fd, false);
-        if (!fd_ctx) {
-            ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_event FdContext not found, fd={}", fd);
-            return 0;
-        }
-
-        // 取消事件
-        int new_events = fd_ctx->cancel_event(event);
-
-        // 更新epoll
-        int ret = 0;
-        if (new_events == FdContext::kNone) {
-            ret = epoll_poller_->del_event(fd);
-        }
-        else {
-            ret = epoll_poller_->mod_event(fd, new_events, fd_ctx.get());
-        }
-
-        if (ret < 0) {
-            ZCOROUTINE_LOG_ERROR("IoScheduler::cancel_event epoll operation failed, fd={}, errno={}",
-                                 fd, errno);
-            return -1;
-        }
-
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_event success, fd={}, event={}, remaining_events={}",
-                             fd, FdContext::event_to_string(event), new_events);
-        return 0;
-    }
-
-    int IoScheduler::cancel_all(int fd)  {
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_all fd={}", fd);
-
-        auto self = this;
-        FdContext::ptr fd_ctx = self->get_fd_context(fd, false);
-        if (!fd_ctx) {
-            ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_all FdContext not found, fd={}", fd);
-            return 0;
-        }
-
-        // 取消所有事件
-        fd_ctx->cancel_all();
-
-        // 从 epoll 中删除
-        int ret = epoll_poller_->del_event(fd);
-        if (ret < 0) {
-            ZCOROUTINE_LOG_ERROR("IoScheduler::cancel_all epoll del_event failed, fd={}, errno={}",
-                                 fd, errno);
-            return -1;
-        }
-
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::cancel_all success, fd={}", fd);
-        return 0;
-    }
-
-    Timer::ptr IoScheduler::add_timer(uint64_t timeout, std::function<void()> callback, bool recurring) {
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::add_timer timeout={}ms, recurring={}", timeout, recurring);
-        // 直接调用 TimerManager，它会通过回调自动唤醒IO线程
-        return timer_manager_->add_timer(timeout, std::move(callback), recurring);
-    }
-
-    Timer::ptr IoScheduler::add_condition_timer(uint64_t timeout, std::function<void()> callback,
-                                                std::weak_ptr<void> weak_cond, bool recurring) {
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::add_condition_timer timeout={}ms, recurring={}", timeout, recurring);
-        // 直接调用 TimerManager，它会通过回调自动唤醒IO线程
-        return timer_manager_->add_condition_timer(timeout, std::move(callback), weak_cond, recurring);
-    }
-
-    void IoScheduler::trigger_event(int fd, FdContext::Event event) {
-        FdContext::ptr fd_ctx = get_fd_context(fd, false);
-        if (!fd_ctx) {
-            ZCOROUTINE_LOG_WARN("IoScheduler::trigger_event FdContext not found, fd={}", fd);
-            return;
-        }
-
-        ZCOROUTINE_LOG_DEBUG("IoScheduler::trigger_event fd={}, event={}", fd, FdContext::event_to_string(event));
-        
-        // 先从 FdContext 中取出并清空 EventContext，
-        // 避免回调中重新注册时被后续 del_event 清空
-        std::function<void()> callback;
-        Fiber::ptr fiber;
-        {
-            // 锁定 fd_ctx 并取出事件上下文
-            FdContext::EventContext& ctx = fd_ctx->get_event_context(event);
-            callback = std::move(ctx.callback);
-            fiber = std::move(ctx.fiber);
-        }
-
-        del_event(fd_ctx->fd(), event);
-        
-        // 最后触发回调或调度协程（epoll已更新，回调中可以安全地重新注册）
-        if (callback) {
-            ZCOROUTINE_LOG_DEBUG("IoScheduler::trigger_event executing callback: fd={}, event={}", fd, FdContext::event_to_string(event));
-            callback();
-        } else if (fiber) {
-            ZCOROUTINE_LOG_DEBUG("IoScheduler::trigger_event scheduling fiber: fd={}, event={}, fiber_id={}",
-                                 fd, FdContext::event_to_string(event), fiber->id());
-            schedule(fiber);
-        } else {
-            ZCOROUTINE_LOG_WARN("IoScheduler::trigger_event no callback or fiber: fd={}, event={}", fd, FdContext::event_to_string(event));
-        }
-    }
-
-    void IoScheduler::io_thread_func() {
-        ZCOROUTINE_LOG_INFO("IoScheduler::io_thread_func IO thread started");
-
-        std::vector<epoll_event> events;
-
-        while (!stopping_.load(std::memory_order_relaxed)) {
-            // 获取下一个定时器超时时间
-            int timeout = timer_manager_->get_next_timeout();
-            if (timeout < 0) {
-                timeout = 5000; // 默认5秒
-            }
-            ZCOROUTINE_LOG_DEBUG("IoScheduler::io_thread_func waiting for events, timeout={}ms", timeout);
-
-            // 等待IO事件
-            int nfds = epoll_poller_->wait(timeout, events);
-
-            if (nfds < 0) {
-                ZCOROUTINE_LOG_ERROR("IoScheduler::io_thread_func epoll_wait failed, errno={}, error={}",
-                                     errno, strerror(errno));
-                continue;
-            }
-
-            if (nfds > 0) {
-                ZCOROUTINE_LOG_DEBUG("IoScheduler::io_thread_func epoll_wait returned nfds={}", nfds);
-            }
-
-            // 处理就绪事件
-            for (int i = 0; i < nfds; ++i) {
-                epoll_event &ev = events[i];
-
-                // 检查是否是唤醒事件
-                if (ev.data.ptr == nullptr) {
-                    char dummy[256];
-                    while (read(wake_fd_[0], dummy, sizeof(dummy)) > 0) {
-                    }
-                    ZCOROUTINE_LOG_DEBUG("IoScheduler::io_thread_func wake up event received");
-                    continue;
-                }
-
-                // 处理IO事件
-                FdContext *fd_ctx = static_cast<FdContext *>(ev.data.ptr);
-                int fd = fd_ctx->fd();
-
-                if (ev.events & EPOLLIN) {
-                    ZCOROUTINE_LOG_DEBUG("IoScheduler::io_thread_func triggering READ event, fd={}", fd);
-                    trigger_event(fd, FdContext::kRead);
-                }
-                if (ev.events & EPOLLOUT) {
-                    ZCOROUTINE_LOG_DEBUG("IoScheduler::io_thread_func triggering WRITE event, fd={}", fd);
-                    trigger_event(fd, FdContext::kWrite);
-                }
-                if (ev.events & (EPOLLERR | EPOLLHUP)) {
-                    ZCOROUTINE_LOG_WARN("IoScheduler::io_thread_func error/hup event, fd={}", fd);
-                    // 错误事件，同时触发读写
-                    trigger_event(fd, FdContext::kRead);
-                    trigger_event(fd, FdContext::kWrite);
-                }
-            }
-
-            // 处理超时定时器
-            auto expired_cbs = timer_manager_->list_expired_callbacks();
-            if (!expired_cbs.empty()) {
-                ZCOROUTINE_LOG_DEBUG("IoScheduler::io_thread_func processing {} expired timers",
-                                     expired_cbs.size());
-            }
-            for (const auto &cb: expired_cbs) {
-                Scheduler::schedule(cb);
-            }
-        }
-
-        ZCOROUTINE_LOG_INFO("IoScheduler::io_thread_func IO thread exiting");
-    }
-
-    void IoScheduler::wake_up() const {
-        char dummy = 'W';
-        ssize_t n = write(wake_fd_[1], &dummy, 1);
-        if (n != 1) {
-            ZCOROUTINE_LOG_ERROR("IoScheduler::wake_up write failed, errno={}, error={}",
-                                 errno, strerror(errno));
-        }
-    }
-
-    IoScheduler *IoScheduler::get_this() {
-        return dynamic_cast<IoScheduler*>(Scheduler::get_this());
-    }
+IoScheduler *IoScheduler::get_this() {
+  return dynamic_cast<IoScheduler *>(Scheduler::get_this());
+}
 } // namespace zcoroutine
