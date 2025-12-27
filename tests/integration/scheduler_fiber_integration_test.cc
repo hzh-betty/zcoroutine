@@ -5,6 +5,7 @@
 #include "scheduling/scheduler.h"
 #include "scheduling/fiber_pool.h"
 #include "runtime/fiber.h"
+#include "util/thread_context.h"
 #include "util/zcoroutine_logger.h"
 
 using namespace zcoroutine;
@@ -203,6 +204,85 @@ TEST_F(SchedulerFiberIntegrationTest, MixedFiberAndCallback) {
     EXPECT_EQ(callback_count.load(), 25);
     
     scheduler_->stop();
+}
+
+TEST_F(SchedulerFiberIntegrationTest, NestedUnderScheduler) {
+    scheduler_->start();
+    std::vector<int> steps;
+    auto parent = std::make_shared<Fiber>([&]() {
+        steps.push_back(1);
+        Fiber::ptr child = std::make_shared<Fiber>([&]() {
+            steps.push_back(2);
+            Fiber::yield();
+            steps.push_back(3);
+        });
+        child->resume();
+        steps.push_back(4);
+        child->resume();
+        steps.push_back(5);
+    });
+    scheduler_->schedule(parent);
+    while (scheduler_->pending_task_count() > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    scheduler_->stop();
+    EXPECT_EQ(steps, (std::vector<int>{1,2,4,3,5}));
+}
+
+TEST_F(SchedulerFiberIntegrationTest, DeepNested64UnderScheduler) {
+    scheduler_->start();
+    std::atomic<int> max_depth{0};
+    auto root = std::make_shared<Fiber>([&]() {
+        std::function<void(int)> make;
+        make = [&](int d) {
+            if (d > 64) return;
+            auto f = std::make_shared<Fiber>([&, d]() {
+                int size = ThreadContext::call_stack_size();
+                if (size > max_depth.load()) max_depth.store(size);
+                if (d < 64) {
+                    make(d + 1);
+                }
+                Fiber::yield();
+            });
+            f->resume();
+        };
+        make(1);
+    });
+    scheduler_->schedule(root);
+    while (scheduler_->pending_task_count() > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    scheduler_->stop();
+    EXPECT_GE(max_depth.load(), 32);
+    EXPECT_LE(max_depth.load(), ThreadContext::kMaxCallStackDepth);
+}
+
+TEST_F(SchedulerFiberIntegrationTest, DeepNestedBeyondLimitUnderScheduler) {
+    scheduler_->start();
+    std::atomic<int> max_depth{0};
+    auto root = std::make_shared<Fiber>([&]() {
+        std::function<void(int)> make;
+        int limit = ThreadContext::kMaxCallStackDepth + 6;
+        make = [&](int d) {
+            if (d > limit) return;
+            auto f = std::make_shared<Fiber>([&, d]() {
+                int size = ThreadContext::call_stack_size();
+                if (size > max_depth.load()) max_depth.store(size);
+                if (d < limit) {
+                    make(d + 1);
+                }
+                Fiber::yield();
+            });
+            f->resume();
+        };
+        make(1);
+    });
+    scheduler_->schedule(root);
+    while (scheduler_->pending_task_count() > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    scheduler_->stop();
+    EXPECT_EQ(max_depth.load(), ThreadContext::kMaxCallStackDepth);
 }
 
 // 测试9：协程异常处理

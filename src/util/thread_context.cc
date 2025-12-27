@@ -8,6 +8,8 @@
 
 namespace zcoroutine {
 
+constexpr int ThreadContext::kMaxCallStackDepth;
+
 // 线程本地变量，存储当前线程的上下文
 thread_local std::unique_ptr<ThreadContext> t_thread_context = nullptr;
 
@@ -21,7 +23,18 @@ ThreadContext* ThreadContext::get_current() {
 }
 
 void ThreadContext::set_main_fiber(Fiber* fiber) {
-    get_current()->main_fiber_ = fiber;
+    auto* ctx = get_current();
+    ctx->main_fiber_ = fiber;
+    if (fiber) {
+        ctx->call_stack_size_ = 0;
+        if (ctx->call_stack_size_ < kMaxCallStackDepth) {
+            ctx->call_stack_[ctx->call_stack_size_++] = fiber;
+        }
+        ctx->current_fiber_ = fiber;
+    } else {
+        ctx->call_stack_size_ = 0;
+        ctx->current_fiber_ = nullptr;
+    }
 }
 
 Fiber* ThreadContext::get_main_fiber() {
@@ -123,6 +136,36 @@ void ThreadContext::set_hook_enable(bool enable) {
 bool ThreadContext::is_hook_enabled() {
     return get_current()->hook_enable_;
 }
+
+void ThreadContext::push_call_stack(Fiber* fiber) {
+    auto* ctx = get_current();
+    if (!fiber) return;
+    if (ctx->call_stack_size_ < kMaxCallStackDepth) {
+        ctx->call_stack_[ctx->call_stack_size_++] = fiber;
+    } else {
+        ZCOROUTINE_LOG_WARN("Call stack depth reached max {}, fiber={}", kMaxCallStackDepth, fiber->name());
+    }
+}
+
+Fiber* ThreadContext::pop_call_stack() {
+    auto* ctx = get_current();
+    if (ctx->call_stack_size_ <= 0) return nullptr;
+    Fiber* f = ctx->call_stack_[ctx->call_stack_size_ - 1];
+    ctx->call_stack_[ctx->call_stack_size_ - 1] = nullptr;
+    ctx->call_stack_size_--;
+    return f;
+}
+
+Fiber* ThreadContext::top_call_stack() {
+    auto* ctx = get_current();
+    if (ctx->call_stack_size_ <= 0) return nullptr;
+    return ctx->call_stack_[ctx->call_stack_size_ - 1];
+}
+
+int ThreadContext::call_stack_size() {
+    return get_current()->call_stack_size_;
+}
+
 
 
 

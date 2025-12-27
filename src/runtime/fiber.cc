@@ -6,10 +6,6 @@
 
 namespace zcoroutine
 {
-    // ============================================================================
-    // Fiber 实现
-    // ============================================================================
-
     // 静态成员初始化
     std::atomic<uint64_t> Fiber::s_fiber_count_{0};
 
@@ -28,23 +24,25 @@ namespace zcoroutine
     }
 
     // 确定切换目标：
+    // - 如果有调用栈，切换到栈顶协程
     // - 如果当前不是scheduler_fiber，切换回scheduler_fiber
     // - 如果当前是scheduler_fiber或没有scheduler_fiber，切换回main_fiber
     void Fiber::confirm_switch_target()
     {
-        Fiber *scheduler_fiber = ThreadContext::get_scheduler_fiber();
-        Fiber *main_fiber = ThreadContext::get_main_fiber();
-
         Fiber *target_fiber = nullptr;
-        if (scheduler_fiber && this != scheduler_fiber)
-        {
-            // 当前是user_fiber，切换回scheduler_fiber
-            target_fiber = scheduler_fiber;
-        }
-        else if (main_fiber)
-        {
-            // 当前是scheduler_fiber或没有scheduler_fiber，切换回main_fiber
-            target_fiber = main_fiber;
+        int depth = ThreadContext::call_stack_size();
+        if (depth >= 2) {
+            ThreadContext::pop_call_stack();
+            target_fiber = ThreadContext::top_call_stack();
+        } else {
+            // 如果当前是scheduler_fiber或没有scheduler_fiber，切换回main_fiber
+            Fiber *scheduler_fiber = ThreadContext::get_scheduler_fiber();
+            Fiber *main_fiber = ThreadContext::get_main_fiber();
+            if (scheduler_fiber && this != scheduler_fiber) {
+                target_fiber = scheduler_fiber;
+            } else if (main_fiber) {
+                target_fiber = main_fiber;
+            }
         }
 
         if (target_fiber && target_fiber->context_)
@@ -252,8 +250,7 @@ namespace zcoroutine
         // 获取当前协程上下文
         Fiber *prev_fiber = get_this();
 
-        // 如果没有当前协程，自动创建main_fiber（用于独立测试场景）
-        // 注意：这是为了兼容没有Scheduler的情况
+        // 如果没有当前协程，自动创建main_fiber
         static thread_local std::unique_ptr<Fiber> t_implicit_main_fiber;
         if (!prev_fiber)
         {
@@ -273,6 +270,8 @@ namespace zcoroutine
         ZCOROUTINE_LOG_DEBUG("Fiber resume: name={}, id={}, prev_state={}",
                              name_, id_, state_to_string(prev_state));
 
+        // 调用栈入栈
+        ThreadContext::push_call_stack(this);
         // 使用统一的切换函数（处理共享栈保存和恢复）
         co_swap(prev_fiber, this);
 

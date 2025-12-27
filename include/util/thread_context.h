@@ -2,6 +2,7 @@
 #define ZCOROUTINE_THREAD_CONTEXT_H_
 
 #include <memory>
+#include <array>
 
 namespace zcoroutine {
 
@@ -28,6 +29,7 @@ enum class StackMode;
  */
 class ThreadContext {
 public:
+    static constexpr int kMaxCallStackDepth = 128;
     /**
      * @brief 获取当前线程的上下文
      * @return 当前线程的ThreadContext指针，如果不存在则创建
@@ -147,6 +149,11 @@ public:
      */
     static bool is_hook_enabled();
 
+    static void push_call_stack(Fiber* fiber);
+    static Fiber* pop_call_stack();
+    static Fiber* top_call_stack();
+    static int call_stack_size();
+
 private:
     Fiber* main_fiber_ = nullptr;         // 主协程（线程入口协程）
     Fiber* current_fiber_ = nullptr;      // 当前执行的协程
@@ -162,6 +169,9 @@ private:
     
     // Hook相关
     bool hook_enable_ = false;            // Hook启用标志
+
+    std::array<Fiber*, kMaxCallStackDepth> call_stack_{};
+    int call_stack_size_ = 0;
 };
 
 } // namespace zcoroutine
