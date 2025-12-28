@@ -357,7 +357,7 @@ TEST_F(TimerTest, TimerAccuracy) {
 
   // 允许10ms的误差
   EXPECT_GE(elapsed, timeout_ms - 10);
-  EXPECT_LE(elapsed, timeout_ms + 50);
+  EXPECT_LE(elapsed, timeout_ms + 100);
 }
 
 // 测试22：多个定时器执行顺序

@@ -895,19 +895,22 @@ TEST_F(HookIntegrationTest, ConnectImmediateSuccess) {
   struct sockaddr_in addr;
   memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
-  addr.sin_addr.s_addr = INADDR_ANY;
+  addr.sin_addr.s_addr = inet_addr("127.0.0.1");
   addr.sin_port = htons(0);
-  ASSERT_GE(bind(listen_fd, (struct sockaddr *)&addr, sizeof(addr)),0);
+  ASSERT_GE(bind(listen_fd, (struct sockaddr *)&addr, sizeof(addr)), 0);
   listen(listen_fd, 1);
 
   socklen_t len = sizeof(addr);
   getsockname(listen_fd, (struct sockaddr *)&addr, &len);
 
+  std::atomic<int> connect_ret{-1};
+
   scheduler_->schedule([&]() {
     set_hook_enable(true);
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     // 连接本地通常非常快，可能立即返回0
-    ASSERT_GE(connect(fd, (struct sockaddr *)&addr, sizeof(addr)),0);
+    int ret = connect(fd, (struct sockaddr *)&addr, sizeof(addr));
+    connect_ret = ret;
     close(fd);
   });
 
@@ -915,6 +918,11 @@ TEST_F(HookIntegrationTest, ConnectImmediateSuccess) {
   int client_fd = accept(listen_fd, nullptr, nullptr);
   if (client_fd > 0)
     close(client_fd);
+
+  // Wait a bit for coroutine to finish updating atomic
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  EXPECT_GE(connect_ret.load(), 0);
   close(listen_fd);
 }
 
