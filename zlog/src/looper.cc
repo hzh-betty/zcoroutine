@@ -12,7 +12,7 @@ AsyncLooper::AsyncLooper(Functor func, const AsyncType looperType,
 void AsyncLooper::push(const char *data, const size_t len) {
   bool needNotify = false;
   {
-    std::unique_lock<std::mutex> lock(mutex_);
+    std::unique_lock<Spinlock> lock(mutex_);
     if (looperType_ == AsyncType::ASYNC_SAFE) {
       condPro_.wait(lock, [&]() { return proBuf_.writeAbleSize() >= len; });
     }
@@ -35,7 +35,7 @@ void AsyncLooper::threadEntry() {
   while (true) {
     {
       // 1. 等待条件满足
-      std::unique_lock<std::mutex> lock(mutex_);
+      std::unique_lock<Spinlock> lock(mutex_);
 
       // 检查是否需要退出或有数据
       if (proBuf_.empty() && stop_) {

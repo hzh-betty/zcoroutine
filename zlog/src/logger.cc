@@ -57,35 +57,7 @@ AsyncLogger::AsyncLogger(const char *loggerName,
           looperType, milliseco)) {}
 
 void AsyncLogger::log(const char *data, const size_t len) {
-  // Thread-Local Batching Logic
-  thread_local Buffer tlBuffer;
-
-  // 如果单条日志过大，直接 push
-  if (len >= FLUSH_BUFFER_SIZE) {
-    if (tlBuffer.readAbleSize() > 0) {
-      looper_->push(tlBuffer.begin(), tlBuffer.readAbleSize());
-      tlBuffer.reset();
-    }
-    looper_->push(data, len);
-    return;
-  }
-
-  // 检查是否有足够的空间
-  if (tlBuffer.writeAbleSize() < len) {
-    looper_->push(tlBuffer.begin(), tlBuffer.readAbleSize());
-    tlBuffer.reset();
-  }
-
-  tlBuffer.push(data, len);
-
-  // 策略：积累到 4KB 就 Flush
-  static constexpr size_t BATCH_SIZE = 4096;
-  if (tlBuffer.readAbleSize() >= BATCH_SIZE) {
-    if (tlBuffer.readAbleSize() > 0) {
-        looper_->push(tlBuffer.begin(), tlBuffer.readAbleSize());
-        tlBuffer.reset();
-    }
-  }
+  looper_->push(data, len);
 }
 
 void AsyncLogger::reLog(const Buffer &buffer) const {

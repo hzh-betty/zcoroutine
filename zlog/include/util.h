@@ -11,6 +11,62 @@
 #endif
 
 namespace zlog {
+
+class NonCopyable {
+public:
+  NonCopyable() = default;
+  ~NonCopyable() = default;
+  NonCopyable(const NonCopyable &) = delete;
+  NonCopyable &operator=(const NonCopyable &) = delete;
+};
+
+/**
+ * @brief 自旋锁
+ * 基于 std::atomic<bool> 实现的优化自旋锁
+ */
+class Spinlock : public NonCopyable {
+public:
+  Spinlock() noexcept = default;
+
+  void lock() noexcept {
+    int spin = 0;
+
+    for (;;) {
+      // 第一阶段：只读自旋（不修改 cache line）
+      while (locked_.load(std::memory_order_relaxed)) {
+        if (spin < kSpinLimit) {
+          cpu_relax();
+          ++spin;
+        } else {
+          std::this_thread::yield();
+        }
+      }
+
+      // 第二阶段：真正抢锁
+      if (!locked_.exchange(true, std::memory_order_acquire)) {
+        return;
+      }
+    }
+  }
+
+  void unlock() noexcept { locked_.store(false, std::memory_order_release); }
+
+private:
+  static constexpr int kSpinLimit = 16;
+
+  std::atomic<bool> locked_{false};
+
+  static inline void cpu_relax() noexcept {
+#if defined(__x86_64__) || defined(__i386__)
+    __builtin_ia32_pause();
+#elif defined(__aarch64__) || defined(__arm__)
+    __asm__ __volatile__("yield");
+#else
+    std::this_thread::yield();
+#endif
+  }
+};
+
 /**
  * @brief 实用工具模块
  * 提供日期和文件操作的常用接口

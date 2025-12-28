@@ -1,6 +1,7 @@
 #ifndef ZLOG_LOOPER_H_
 #define ZLOG_LOOPER_H_
 #include "buffer.h"
+#include "util.h"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -65,15 +66,15 @@ private:
   void threadEntry();
 
 private:
-  AsyncType looperType_;            ///< 异步类型
-  std::atomic<bool> stop_;          ///< 停止标志
-  Buffer proBuf_;                   ///< 生产缓冲区
-  Buffer conBuf_;                   ///< 消费缓冲区
-  std::mutex mutex_;                ///< 互斥锁（用于缓冲区与条件变量）
-  std::condition_variable condPro_; ///< 生产者条件变量
-  std::condition_variable condCon_; ///< 消费者条件变量
-  std::thread thread_;              ///< 工作线程
-  Functor callBack_;                ///< 回调函数
+  AsyncType looperType_;                ///< 异步类型
+  std::atomic<bool> stop_;              ///< 停止标志
+  Buffer proBuf_;                       ///< 生产缓冲区
+  Buffer conBuf_;                       ///< 消费缓冲区
+  Spinlock mutex_;                      ///< 互斥锁（自旋锁）
+  std::condition_variable_any condPro_; ///< 生产者条件变量
+  std::condition_variable_any condCon_; ///< 消费者条件变量
+  std::thread thread_;                  ///< 工作线程
+  Functor callBack_;                    ///< 回调函数
   std::chrono::milliseconds milliseco_; ///< 最大等待时间
 };
 } // namespace zlog
