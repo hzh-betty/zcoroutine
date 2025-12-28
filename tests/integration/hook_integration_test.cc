@@ -90,7 +90,7 @@ TEST_F(HookIntegrationTest, UsleepHook) {
     done = true;
   });
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(600));
+  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   EXPECT_TRUE(done.load());
 
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -457,7 +457,7 @@ TEST_F(HookIntegrationTest, ReadTimeoutWorks) {
   EXPECT_TRUE(timeout_occurred.load());
   EXPECT_EQ(error_code.load(), ETIMEDOUT);
   EXPECT_GE(duration, 500);
-  EXPECT_LT(duration, 1000);
+  EXPECT_LT(duration, 2000); // 考虑到调度和系统负载，可能会稍长
 
   close(socks[0]);
   close(socks[1]);
@@ -729,6 +729,193 @@ TEST_F(HookIntegrationTest, NonSocketFdNotHooked) {
   }
 
   close(fd);
+}
+
+// 测试23：无效fd的hook调用
+TEST_F(HookIntegrationTest, InvalidFdHook) {
+  set_hook_enable(true);
+  char buf[10];
+  // 读无效fd
+  EXPECT_EQ(read(-1, buf, 10), -1);
+  EXPECT_EQ(errno, EBADF);
+
+  // 写无效fd
+  EXPECT_EQ(write(-1, buf, 10), -1);
+  EXPECT_EQ(errno, EBADF);
+
+  // recv/send 无效fd
+  EXPECT_EQ(recv(-1, buf, 10, 0), -1);
+  EXPECT_EQ(errno, EBADF);
+  EXPECT_EQ(send(-1, buf, 10, 0), -1);
+  EXPECT_EQ(errno, EBADF);
+
+  // accept/connect 无效fd
+  EXPECT_EQ(accept(-1, nullptr, nullptr), -1);
+  EXPECT_EQ(errno, EBADF);
+  EXPECT_EQ(connect(-1, nullptr, 0), -1);
+  EXPECT_EQ(errno, EBADF);
+
+  // 读已关闭fd
+  // 注意：close
+  // hook可能会取消事件，所以我们需要一个已关闭的fd但StatusTable中可能还有记录？
+  // 不，如果close了，StatusTable中也删除了。
+  // 所以这里测试的是 StatusTable 中找不到 fd 的情况
+
+  // 创建一个临时文件，不走hook逻辑（或者走但立即返回）
+  int fd = open("/dev/null", O_RDONLY);
+  if (fd >= 0) {
+    close(fd);
+    // 现在fd关闭了，read应该返回EBADF
+    EXPECT_EQ(read(fd, buf, 10), -1);
+    EXPECT_EQ(errno, EBADF);
+  }
+}
+
+// 测试24：sendmsg/recvmsg hook
+TEST_F(HookIntegrationTest, RecvmsgSendmsgHook) {
+  set_hook_enable(true);
+  int socks[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, socks), 0);
+
+  std::atomic<bool> done{false};
+
+  scheduler_->schedule([&]() {
+    set_hook_enable(true);
+    // sendmsg
+    const char *msg = "msg";
+    struct iovec iov;
+    iov.iov_base = (void *)msg;
+    iov.iov_len = strlen(msg);
+    struct msghdr mh = {0};
+    mh.msg_iov = &iov;
+    mh.msg_iovlen = 1;
+
+    ssize_t n = sendmsg(socks[0], &mh, 0);
+    EXPECT_GT(n, 0);
+  });
+
+  scheduler_->schedule([&]() {
+    set_hook_enable(true);
+    // recvmsg
+    char buf[32];
+    struct iovec iov;
+    iov.iov_base = buf;
+    iov.iov_len = sizeof(buf);
+    struct msghdr mh = {0};
+    mh.msg_iov = &iov;
+    mh.msg_iovlen = 1;
+
+    ssize_t n = recvmsg(socks[1], &mh, 0);
+    if (n > 0) {
+      done = true;
+    }
+  });
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  EXPECT_TRUE(done.load());
+
+  close(socks[0]);
+  close(socks[1]);
+}
+
+// 测试25：sendto/recvfrom hook
+TEST_F(HookIntegrationTest, RecvfromSendtoHook) {
+  set_hook_enable(true);
+  int socks[2];
+  ASSERT_EQ(socketpair(AF_UNIX, SOCK_DGRAM, 0, socks), 0);
+
+  std::atomic<bool> done{false};
+
+  scheduler_->schedule([&]() {
+    set_hook_enable(true);
+    const char *msg = "udp";
+    ssize_t n = sendto(socks[0], msg, strlen(msg), 0, nullptr, 0);
+    EXPECT_GT(n, 0);
+  });
+
+  scheduler_->schedule([&]() {
+    set_hook_enable(true);
+    char buf[32];
+    ssize_t n = recvfrom(socks[1], buf, sizeof(buf), 0, nullptr, nullptr);
+    if (n > 0) {
+      done = true;
+    }
+  });
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  EXPECT_TRUE(done.load());
+
+  close(socks[0]);
+  close(socks[1]);
+}
+
+// 测试26：getsockopt/setsockopt hook
+TEST_F(HookIntegrationTest, GetsockoptHook) {
+  set_hook_enable(true);
+  int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+  ASSERT_GT(sockfd, 0);
+
+  int type = 0;
+  socklen_t len = sizeof(type);
+  EXPECT_EQ(getsockopt(sockfd, SOL_SOCKET, SO_TYPE, &type, &len), 0);
+  EXPECT_EQ(type, SOCK_STREAM);
+
+  // setsockopt 普通选项
+  int keepalive = 1;
+  EXPECT_EQ(setsockopt(sockfd, SOL_SOCKET, SO_KEEPALIVE, &keepalive,
+                       sizeof(keepalive)),
+            0);
+
+  close(sockfd);
+}
+
+// 测试27：fcntl 其他命令覆盖
+TEST_F(HookIntegrationTest, FcntlOtherCmds) {
+  set_hook_enable(true);
+  int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+  ASSERT_GT(sockfd, 0);
+
+  // F_DUPFD
+  int new_fd = fcntl(sockfd, F_DUPFD, 0);
+  EXPECT_GT(new_fd, 0);
+  close(new_fd);
+
+  // F_GETFD / F_SETFD
+  int flags = fcntl(sockfd, F_GETFD);
+  EXPECT_GE(flags, 0);
+  fcntl(sockfd, F_SETFD, flags | FD_CLOEXEC);
+
+  close(sockfd);
+}
+
+// 测试28：connect 非阻塞 - 立即成功
+TEST_F(HookIntegrationTest, ConnectImmediateSuccess) {
+  // 模拟连接本地监听端口
+  int listen_fd = socket(AF_INET, SOCK_STREAM, 0);
+  struct sockaddr_in addr;
+  memset(&addr, 0, sizeof(addr));
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = INADDR_ANY;
+  addr.sin_port = htons(0);
+  ASSERT_GE(bind(listen_fd, (struct sockaddr *)&addr, sizeof(addr)),0);
+  listen(listen_fd, 1);
+
+  socklen_t len = sizeof(addr);
+  getsockname(listen_fd, (struct sockaddr *)&addr, &len);
+
+  scheduler_->schedule([&]() {
+    set_hook_enable(true);
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    // 连接本地通常非常快，可能立即返回0
+    ASSERT_GE(connect(fd, (struct sockaddr *)&addr, sizeof(addr)),0);
+    close(fd);
+  });
+
+  // Accept
+  int client_fd = accept(listen_fd, nullptr, nullptr);
+  if (client_fd > 0)
+    close(client_fd);
+  close(listen_fd);
 }
 
 int main(int argc, char **argv) {

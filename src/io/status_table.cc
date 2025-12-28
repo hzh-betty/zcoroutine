@@ -7,8 +7,6 @@
 
 #include <algorithm>
 
-#include "util/zcoroutine_logger.h"
-
 namespace zcoroutine {
 
 SocketStatus::SocketStatus(const int fd) : fd_(fd) { init(); }
@@ -73,8 +71,6 @@ uint64_t SocketStatus::get_timeout(const int type) const {
 
 StatusTable::StatusTable() {
   fd_datas_.resize(64);
-  ZCOROUTINE_LOG_DEBUG("StatusTable initialized with capacity={}",
-                       fd_datas_.size());
 }
 
 SocketStatus::ptr StatusTable::get(int fd, bool auto_create) {

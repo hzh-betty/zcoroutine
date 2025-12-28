@@ -44,7 +44,6 @@ SharedStackBuffer::~SharedStackBuffer() {
 // SharedStack 实现
 // ============================================================================
 
-// 静态常量成员定义
 constexpr size_t SharedStack::kDefaultStackSize;
 constexpr int SharedStack::kDefaultStackCount;
 
@@ -119,7 +118,7 @@ void SwitchStack::switch_func() {
       ZCOROUTINE_LOG_ERROR("switch_func: invalid curr or target fiber");
       return;
     }
-    
+
     Fiber *curr = curr_ptr.get();
     Fiber *target = target_ptr.get();
 
@@ -226,9 +225,6 @@ void SharedContext::save_stack_buffer(void *stack_sp) {
   }
 
   size_t len = static_cast<size_t>(stack_top - sp);
-  if (len == 0) {
-    return;
-  }
 
   // 释放旧的保存缓冲区
   if (save_buffer_) {

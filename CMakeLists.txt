@@ -3,6 +3,9 @@ project(zcoroutine LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+option(ENABLE_TESTS "Enable building tests" OFF)
+
 # 日志库
 add_subdirectory(zlog)
 
@@ -68,5 +71,7 @@ message(STATUS "  Build Type: ${CMAKE_BUILD_TYPE}")
 message(STATUS "  Shared Library: zcoroutine_shared")
 message(STATUS "  Static Library: zcoroutine_static")
 
-# 添加测试子目录
-add_subdirectory(tests)
+if(ENABLE_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

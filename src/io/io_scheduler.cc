@@ -122,12 +122,7 @@ int IoScheduler::add_event(int fd, FdContext::Event event,
   } else {
     // 如果没有回调，使用当前协程
     auto current_fiber = Fiber::get_this();
-    if (!current_fiber) {
-      ZCOROUTINE_LOG_ERROR("IoScheduler::add_event no callback and no current "
-                           "fiber, fd={}, event={}",
-                           fd, FdContext::event_to_string(event));
-      return -1;
-    }
+    // Fiber::get_this() 会自动创建主协程，所以理论上不会为空，除非内存分配失败(抛出异常)
     event_ctx.fiber = current_fiber;
   }
 

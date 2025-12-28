@@ -1,6 +1,37 @@
-# 启用测试
-enable_testing()
+option(ENABLE_COVERAGE "Enable code coverage generation" OFF)
+
+function(zcoroutine_apply_coverage target_name)
+    if(NOT TARGET ${target_name})
+        return()
+    endif()
+
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        return()
+    endif()
+
+    target_compile_options(${target_name} PRIVATE
+            -fprofile-arcs
+            -ftest-coverage
+            -fprofile-update=atomic
+    )
+
+    get_target_property(target_type ${target_name} TYPE)
+    if(NOT target_type STREQUAL "STATIC_LIBRARY")
+        target_link_options(${target_name} PRIVATE
+                -fprofile-arcs
+                -ftest-coverage
+                -fprofile-update=atomic
+        )
+    endif()
+endfunction()
+
 find_package(GTest REQUIRED)
+
+if(ENABLE_COVERAGE)
+    message(STATUS "Enabling code coverage")
+    zcoroutine_apply_coverage(zcoroutine_shared)
+    zcoroutine_apply_coverage(zcoroutine_static)
+endif()
 
 # 收集测试源文件
 file(GLOB TEST_UNIT_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/unit/*.cc)
@@ -19,6 +50,9 @@ if(TEST_UNIT_SRCS)
                 GTest::gtest
                 pthread
         )
+        if(ENABLE_COVERAGE)
+            zcoroutine_apply_coverage(${test_name})
+        endif()
         # 添加为CTest测试
         add_test(NAME ${test_name} COMMAND ${test_name})
         message(STATUS "Configured unit test: ${test_name}")
@@ -38,6 +72,9 @@ if(TEST_INTEGRATION_SRCS)
                 GTest::gtest
                 pthread
         )
+        if(ENABLE_COVERAGE)
+            zcoroutine_apply_coverage(${test_name})
+        endif()
         # 添加为CTest测试
         add_test(NAME ${test_name} COMMAND ${test_name})
         message(STATUS "Configured integration test: ${test_name}")

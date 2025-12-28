@@ -442,7 +442,7 @@ TEST_F(StatusTableTest, IoctlWorkWithSocketFdContext) {
 
 int main(int argc, char **argv) {
   // 初始化日志系统
-  zcoroutine::init_logger(zlog::LogLevel::value::INFO);
+  zcoroutine::init_logger(zlog::LogLevel::value::DEBUG);
 
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();

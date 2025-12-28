@@ -12,10 +12,22 @@
 
 namespace zcoroutine {
 
+/**
+ * @brief 检查当前线程是否启用了hook
+ */
 bool is_hook_enabled() { return ThreadContext::is_hook_enabled(); }
 
+/**
+ * @brief 设置当前线程的hook启用状态
+ */
 void set_hook_enable(bool enable) { ThreadContext::set_hook_enable(enable); }
 
+/**
+ * @brief Hook初始化函数
+ *
+ * 使用dlsym获取libc中的原始系统调用函数地址，保存到全局变量中。
+ * 这样在Hook函数中就可以调用原始的系统调用。
+ */
 void hook_init() {
   static bool is_inited = false;
   if (is_inited)
@@ -23,6 +35,7 @@ void hook_init() {
   is_inited = true;
 
   // 使用dlsym获取原始函数指针
+  // RTLD_NEXT 表示在动态链接库搜索顺序中，查找下一个出现的符号
 #define XX(name) name##_f = (name##_func)dlsym(RTLD_NEXT, #name);
   XX(sleep)
   XX(usleep)
@@ -93,7 +106,19 @@ static uint64_t s_connect_timeout = 5000;
 /**
  * @brief 通用IO Hook模板函数
  *
- * 将阻塞IO操作转换为非阻塞+协程调度的方式
+ * 这是Hook机制的核心实现。它将同步阻塞的IO操作转换为异步非阻塞+协程调度的模式。
+ *
+ * 流程如下：
+ * 1. 检查Hook是否启用，未启用则直接调用原始函数。
+ * 2. 检查fd是否是Socket且非用户设置的非阻塞模式。
+ * 3. 尝试执行一次原始IO操作。
+ * 4. 如果操作返回EAGAIN（表示资源不可用），则：
+ *    a. 向IoScheduler注册IO事件监听。
+ *    b. 如果有超时设置，注册一个定时器。
+ *    c. 让出当前协程执行权 (Fiber::yield)。
+ *    d. 当事件就绪或超时后，协程恢复执行。
+ *    e. 再次尝试IO操作。
+ *
  * @param fd 文件描述符
  * @param fun 原始函数
  * @param hook_fun_name 函数名（用于日志）
@@ -125,6 +150,7 @@ static ssize_t do_io_hook(int fd, OriginFun fun, const char *hook_fun_name,
   }
 
   // 如果不是socket或者用户设置为非阻塞，直接调用原始函数
+  // 注意：我们只hook阻塞模式的socket IO
   if (!fd_ctx->is_socket() || fd_ctx->get_user_nonblock()) {
     return fun(fd, std::forward<Args>(args)...);
   }
@@ -162,7 +188,7 @@ static ssize_t do_io_hook(int fd, OriginFun fun, const char *hook_fun_name,
                 return;
               }
               it->cancelled = ETIMEDOUT;
-              // 取消IO事件
+              // 取消IO事件，这会触发epoll事件从而唤醒协程
               iom->cancel_event(
                   fd, static_cast<zcoroutine::FdContext::Event>(event));
             },
@@ -181,7 +207,7 @@ static ssize_t do_io_hook(int fd, OriginFun fun, const char *hook_fun_name,
         return -1;
       }
 
-      // 让出协程，等待事件就绪
+      // 让出协程，等待事件就绪或超时
       zcoroutine::Fiber::yield();
 
       // 协程被唤醒后，取消定时器
@@ -206,6 +232,8 @@ static ssize_t do_io_hook(int fd, OriginFun fun, const char *hook_fun_name,
 extern "C" {
 
 // ==================== Sleep系列 ====================
+// Sleep系列函数的Hook实现原理：
+// 添加一个定时器，然后让出协程。当定时器超时后，调度器会重新调度该协程。
 
 unsigned int sleep(unsigned int seconds) {
   if (!zcoroutine::is_hook_enabled()) {
@@ -263,6 +291,8 @@ int nanosleep(const struct timespec *req, struct timespec *rem) {
     return nanosleep_f(req, rem);
   }
 
+  ZCOROUTINE_LOG_DEBUG("hook nanosleep");
+
   zcoroutine::Fiber::ptr cur_fiber = zcoroutine::Fiber::get_this();
   if (!cur_fiber) {
     return nanosleep_f(req, rem);
@@ -289,6 +319,7 @@ int socket(int domain, int type, int protocol) {
   }
 
   // 获取 StatusTable 并注册该fd
+  // 这一步很重要，因为我们需要追踪每个socket的状态（是否是非阻塞，超时设置等）
   zcoroutine::StatusTable::ptr status_table =
       zcoroutine::StatusTable::GetInstance();
   status_table->get(fd, true); // auto_create = true
@@ -317,6 +348,15 @@ int socketpair(int domain, int type, int protocol, int sv[2]) {
   return ret;
 }
 
+/**
+ * @brief 带超时的connect实现
+ *
+ * connect的Hook比较特殊，因为connect不能像read/write那样简单重试。
+ * 非阻塞connect的标准处理流程是：
+ * 1. 发起connect，如果返回EINPROGRESS，表示正在连接。
+ * 2. 使用epoll/select等待socket可写。
+ * 3. 可写后，使用getsockopt检查SO_ERROR判断连接是否成功。
+ */
 int connect_with_timeout(int fd, const struct sockaddr *addr, socklen_t addrlen,
                          uint64_t timeout_ms) {
   if (!zcoroutine::is_hook_enabled()) {
@@ -346,6 +386,7 @@ int connect_with_timeout(int fd, const struct sockaddr *addr, socklen_t addrlen,
   if (n == 0) {
     return 0;
   }
+  // EINPROGRESS表示连接正在进行中
   if (n != -1 || errno != EINPROGRESS) {
     return n;
   }
@@ -385,7 +426,7 @@ int connect_with_timeout(int fd, const struct sockaddr *addr, socklen_t addrlen,
     return -1;
   }
 
-  // 让出协程
+  // 让出协程，等待连接完成或超时
   zcoroutine::Fiber::yield();
 
   // 取消定时器
@@ -428,8 +469,6 @@ int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
   }
   return fd;
 }
-
-// ==================== Read系列 ====================
 
 ssize_t read(int fd, void *buf, size_t count) {
   return do_io_hook(fd, read_f, "read", zcoroutine::FdContext::kRead,
@@ -493,6 +532,8 @@ int close(int fd) {
     return close_f(fd);
   }
 
+  ZCOROUTINE_LOG_DEBUG("hook close fd={}", fd);
+
   // 获取文件描述符上下文
   zcoroutine::SocketStatus::ptr ctx =
       zcoroutine::StatusTable::GetInstance()->get(fd);
@@ -511,6 +552,17 @@ int close(int fd) {
 
 // ==================== fcntl ====================
 
+/**
+ * @brief fcntl hook
+ *
+ * 这里的关键逻辑是维护用户视角和系统视角的非阻塞状态。
+ * 在协程框架中，socket在系统层面始终是 O_NONBLOCK 的。
+ * 但为了兼容用户代码，我们需要记录用户是否设置了 O_NONBLOCK。
+ *
+ * 当用户设置 O_NONBLOCK 时，我们记录下来，并且系统socket保持 O_NONBLOCK。
+ * 当用户清除 O_NONBLOCK 时，我们记录下来，但系统socket仍然保持 O_NONBLOCK。
+ * 当用户查询 flags 时，我们根据记录的用户状态，伪造返回结果。
+ */
 int fcntl(int fd, int cmd, ... /* arg */) {
   va_list va;
   va_start(va, cmd);

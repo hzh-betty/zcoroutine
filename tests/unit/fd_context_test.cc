@@ -424,14 +424,13 @@ TEST_F(FdContextTest, BothFiberAndCallbackSet) {
 
   ctx1_->trigger_event(FdContext::kRead);
 
-  // 应该优先使用回调或协程之一（具体行为取决于实现）
   // 至少应该执行其中一个
   EXPECT_TRUE(callback_called || fiber_executed);
 }
 
 int main(int argc, char **argv) {
   // 初始化日志系统
-  zcoroutine::init_logger(zlog::LogLevel::value::INFO);
+  zcoroutine::init_logger(zlog::LogLevel::value::DEBUG);
 
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
