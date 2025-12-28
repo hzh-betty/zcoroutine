@@ -1,6 +1,5 @@
 #ifndef ZLOG_SINK_H_
 #define ZLOG_SINK_H_
-#include "util.h"
 #include <fmt/core.h>
 #include <fmt/os.h>
 #include <fmt/ostream.h>

@@ -1,4 +1,5 @@
 #include "format.h"
+
 #include <iostream>
 #include <sstream>
 
@@ -9,45 +10,51 @@ thread_local std::string tidStr;
 
 void MessageFormatItem::format(fmt::memory_buffer &buffer,
                                const LogMessage &msg) {
-  fmt::format_to(std::back_inserter(buffer), "{}", msg.payload_);
+  if (msg.payload_) {
+    buffer.append(msg.payload_, msg.payload_ + strlen(msg.payload_));
+  }
 }
 
 void LevelFormatItem::format(fmt::memory_buffer &buffer,
                              const LogMessage &msg) {
   std::string levelstr = LogLevel::toString(msg.level_);
-  fmt::format_to(std::back_inserter(buffer), "{}", levelstr);
+  buffer.append(levelstr.data(), levelstr.data() + levelstr.size());
 }
 
 TimeFormatItem::TimeFormatItem(std::string timeFormat)
     : timeFormat_(std::move(timeFormat)) {}
 
 void TimeFormatItem::format(fmt::memory_buffer &buffer, const LogMessage &msg) {
-  thread_local std::string cached_time;
-  thread_local time_t last_cached = 0;
+  // 秒级缓存优化
+  thread_local time_t last_second = 0;
+  thread_local char cached_time_str[64];
+  thread_local size_t cached_len = 0;
 
-  if (last_cached != msg.curtime_) {
+  if (last_second != msg.curtime_) {
     struct tm lt {};
 #ifdef _WIN32
     localtime_s(&lt, &msg.curtime_);
 #else
     localtime_r(&msg.curtime_, &lt);
 #endif
-
-    // 使用临时缓冲区
-    char buf[64];
-    const size_t len = strftime(buf, sizeof(buf), timeFormat_.c_str(), &lt);
-    if (len > 0) {
-      cached_time.assign(buf, len);
-      last_cached = msg.curtime_;
-    } else {
-      cached_time = "InvalidTime";
-    }
+    cached_len = strftime(cached_time_str, sizeof(cached_time_str),
+                          timeFormat_.c_str(), &lt);
+    last_second = msg.curtime_;
   }
-  fmt::format_to(std::back_inserter(buffer), "{}", cached_time);
+
+  if (cached_len > 0) {
+    buffer.append(cached_time_str, cached_time_str + cached_len);
+  } else {
+    // 错误处理
+    const char *err = "InvalidTime";
+    buffer.append(err, err + 11);
+  }
 }
 
 void FileFormatItem::format(fmt::memory_buffer &buffer, const LogMessage &msg) {
-  fmt::format_to(std::back_inserter(buffer), "{}", msg.file_);
+  if (msg.file_) {
+    buffer.append(msg.file_, msg.file_ + strlen(msg.file_));
+  }
 }
 
 void LineFormatItem::format(fmt::memory_buffer &buffer, const LogMessage &msg) {
@@ -64,23 +71,25 @@ void ThreadIdFormatItem::format(fmt::memory_buffer &buffer,
     tidStr = ss.str();
   }
 
-  fmt::format_to(std::back_inserter(buffer), "{}", tidStr);
+  buffer.append(tidStr.data(), tidStr.data() + tidStr.size());
 }
 
 void LoggerFormatItem::format(fmt::memory_buffer &buffer,
                               const LogMessage &msg) {
-  fmt::format_to(std::back_inserter(buffer), "{}", msg.loggerName_);
+  if (msg.loggerName_) {
+    buffer.append(msg.loggerName_, msg.loggerName_ + strlen(msg.loggerName_));
+  }
 }
 
 void TabFormatItem::format(fmt::memory_buffer &buffer, const LogMessage &msg) {
   (void)msg; // 避免未使用参数警告
-  fmt::format_to(std::back_inserter(buffer), "{}", "\t");
+  buffer.push_back('\t');
 }
 
 void NLineFormatItem::format(fmt::memory_buffer &buffer,
                              const LogMessage &msg) {
   (void)msg; // 避免未使用参数警告
-  fmt::format_to(std::back_inserter(buffer), "{}", "\n");
+  buffer.push_back('\n');
 }
 
 OtherFormatItem::OtherFormatItem(std::string str) : str_(std::move(str)) {}
@@ -88,7 +97,7 @@ OtherFormatItem::OtherFormatItem(std::string str) : str_(std::move(str)) {}
 void OtherFormatItem::format(fmt::memory_buffer &buffer,
                              const LogMessage &msg) {
   (void)msg; // 避免未使用参数警告
-  fmt::format_to(std::back_inserter(buffer), "{}", str_);
+  buffer.append(str_.data(), str_.data() + str_.size());
 }
 
 Formatter::Formatter(std::string pattern) : pattern_(std::move(pattern)) {
@@ -160,8 +169,21 @@ bool Formatter::parsePattern() {
   }
 
   // 7. 添加对应的格式化子对象
-  for (auto &item : fmt_order) {
-    items_.push_back(createItem(item.first, item.second));
+  // 优化：合并相邻的 OtherFormatItem (字符串常量)
+  for (size_t i = 0; i < fmt_order.size(); ++i) {
+    if (fmt_order[i].first.empty()) {
+      // 当前是普通字符串
+      std::string combined_val = fmt_order[i].second;
+      // 向后查看是否还有普通字符串
+      while (i + 1 < fmt_order.size() && fmt_order[i + 1].first.empty()) {
+        combined_val += fmt_order[i + 1].second;
+        i++;
+      }
+      items_.push_back(std::make_shared<OtherFormatItem>(combined_val));
+    } else {
+      // 是格式化占位符
+      items_.push_back(createItem(fmt_order[i].first, fmt_order[i].second));
+    }
   }
 
   return true;

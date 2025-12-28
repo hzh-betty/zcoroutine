@@ -1,5 +1,5 @@
+#include "util.h"
 #include "logger.h"
-
 namespace zlog {
 
 Logger::Logger(const char *loggerName, const LogLevel::value limitLevel,
@@ -9,7 +9,10 @@ Logger::Logger(const char *loggerName, const LogLevel::value limitLevel,
 
 void Logger::serialize(const LogLevel::value level, const char *file,
                        const size_t line, const char *data) {
+  // 1. Thread-local LogMessage to avoid construction/destruction overhead
   thread_local LogMessage msg(LogLevel::value::DEBUG, "", 0, "", "");
+  
+  // 2. Direct assignment (fast)
   msg.curtime_ = Date::getCurrentTime();
   msg.level_ = level;
   msg.file_ = file;
@@ -17,9 +20,15 @@ void Logger::serialize(const LogLevel::value level, const char *file,
   msg.tid_ = std::this_thread::get_id();
   msg.payload_ = data;
   msg.loggerName_ = loggerName_;
+  
+  // 3. Thread-local format buffer to avoid memory allocation
   thread_local fmt::memory_buffer buffer;
   buffer.clear();
+  
+  // 4. Format
   formatter_->format(buffer, msg);
+  
+  // 5. Log
   log(buffer.data(), buffer.size());
 }
 
@@ -48,7 +57,35 @@ AsyncLogger::AsyncLogger(const char *loggerName,
           looperType, milliseco)) {}
 
 void AsyncLogger::log(const char *data, const size_t len) {
-  looper_->push(data, len);
+  // Thread-Local Batching Logic
+  thread_local Buffer tlBuffer;
+
+  // 如果单条日志过大，直接 push
+  if (len >= FLUSH_BUFFER_SIZE) {
+    if (tlBuffer.readAbleSize() > 0) {
+      looper_->push(tlBuffer.begin(), tlBuffer.readAbleSize());
+      tlBuffer.reset();
+    }
+    looper_->push(data, len);
+    return;
+  }
+
+  // 检查是否有足够的空间
+  if (tlBuffer.writeAbleSize() < len) {
+    looper_->push(tlBuffer.begin(), tlBuffer.readAbleSize());
+    tlBuffer.reset();
+  }
+
+  tlBuffer.push(data, len);
+
+  // 策略：积累到 4KB 就 Flush
+  static constexpr size_t BATCH_SIZE = 4096;
+  if (tlBuffer.readAbleSize() >= BATCH_SIZE) {
+    if (tlBuffer.readAbleSize() > 0) {
+        looper_->push(tlBuffer.begin(), tlBuffer.readAbleSize());
+        tlBuffer.reset();
+    }
+  }
 }
 
 void AsyncLogger::reLog(const Buffer &buffer) const {

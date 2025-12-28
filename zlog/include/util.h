@@ -1,6 +1,9 @@
 #ifndef ZLOG_UTIL_H_
 #define ZLOG_UTIL_H_
+#include <atomic>
 #include <string>
+#include <thread>
+
 #ifdef _WIN32
 #include <direct.h>
 #else

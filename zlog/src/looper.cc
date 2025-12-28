@@ -1,4 +1,5 @@
 #include "looper.h"
+#include <iostream>
 
 namespace zlog {
 
@@ -9,13 +10,16 @@ AsyncLooper::AsyncLooper(Functor func, const AsyncType looperType,
       callBack_(std::move(func)), milliseco_(milliseco) {}
 
 void AsyncLooper::push(const char *data, const size_t len) {
-  std::unique_lock<std::mutex> lock(mutex_);
-  if (looperType_ == AsyncType::ASYNC_SAFE) {
-    condPro_.wait(lock, [&]() { return proBuf_.writeAbleSize() >= len; });
+  bool needNotify = false;
+  {
+    std::unique_lock<std::mutex> lock(mutex_);
+    if (looperType_ == AsyncType::ASYNC_SAFE) {
+      condPro_.wait(lock, [&]() { return proBuf_.writeAbleSize() >= len; });
+    }
+    proBuf_.push(data, len);
+    needNotify = (proBuf_.readAbleSize() >= FLUSH_BUFFER_SIZE);
   }
-  proBuf_.push(data, len);
-
-  if (proBuf_.readAbleSize() >= FLUSH_BUFFER_SIZE)
+  if (needNotify)
     condCon_.notify_one();
 }
 
@@ -30,30 +34,41 @@ void AsyncLooper::stop() {
 void AsyncLooper::threadEntry() {
   while (true) {
     {
-      // 1.判断生产缓冲区有没有数据
+      // 1. 等待条件满足
       std::unique_lock<std::mutex> lock(mutex_);
 
-      // 当生产缓冲区为空且标志位被设置的情况下才退出，否则退出时生产缓冲区仍有数据
-      if (proBuf_.empty() && stop_ == true) {
+      // 检查是否需要退出或有数据
+      if (proBuf_.empty() && stop_) {
         break;
       }
 
       // 等待，超时返回
-      if (!condCon_.wait_for(lock, milliseco_, [this]() {
-            return proBuf_.readAbleSize() >= FLUSH_BUFFER_SIZE || stop_;
-          })) {
-        if (proBuf_.empty())
-          continue;
-      }
+      // 注意：wait_for 需要在持有 mutex_ 时调用
+      condCon_.wait_for(lock, milliseco_, [this]() {
+        return (proBuf_.readAbleSize() >= FLUSH_BUFFER_SIZE) || stop_;
+      });
 
-      // 2.唤醒后交换缓冲区
+      // 2. 交换缓冲区
+      if (proBuf_.empty()) {
+        if (stop_)
+          break;
+        continue; // 虚假唤醒或超时但无数据
+      }
       conBuf_.swap(proBuf_);
+
+      // 3. 唤醒生产者 (仅SAFE模式)
       if (looperType_ == AsyncType::ASYNC_SAFE)
         condPro_.notify_one();
     }
 
-    // 3.处理数据并初始化
-    callBack_(conBuf_);
+    // 4.处理数据并初始化
+    try {
+      callBack_(conBuf_);
+    } catch (const std::exception &e) {
+      std::cerr << "AsyncLooper callback exception: " << e.what() << std::endl;
+    } catch (...) {
+      std::cerr << "AsyncLooper callback unknown exception" << std::endl;
+    }
     conBuf_.reset();
   }
 }

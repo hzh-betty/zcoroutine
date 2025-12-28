@@ -11,8 +11,6 @@
 #include "level.h"
 #include "looper.h"
 #include "sink.h"
-#include "util.h"
-#include <atomic>
 #include <fmt/format.h>
 #include <mutex>
 #include <unordered_map>

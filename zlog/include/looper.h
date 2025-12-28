@@ -19,7 +19,7 @@ enum class AsyncType {
 };
 
 static constexpr size_t FLUSH_BUFFER_SIZE =
-    DEFAULT_BUFFER_SIZE / 2; ///< 刷新缓冲区大小阈值
+    DEFAULT_BUFFER_SIZE * 0.8; ///< 刷新缓冲区大小阈值 (提高到 80%)
 
 /**
  * @brief 异步日志循环器
@@ -65,15 +65,15 @@ private:
   void threadEntry();
 
 private:
-  AsyncType looperType_;                ///< 异步类型
-  std::atomic<bool> stop_;              ///< 停止标志
-  Buffer proBuf_;                       ///< 生产缓冲区
-  Buffer conBuf_;                       ///< 消费缓冲区
-  std::mutex mutex_;                    ///< 互斥锁
-  std::condition_variable condPro_;     ///< 生产者条件变量
-  std::condition_variable condCon_;     ///< 消费者条件变量
-  std::thread thread_;                  ///< 工作线程
-  Functor callBack_;                    ///< 回调函数
+  AsyncType looperType_;            ///< 异步类型
+  std::atomic<bool> stop_;          ///< 停止标志
+  Buffer proBuf_;                   ///< 生产缓冲区
+  Buffer conBuf_;                   ///< 消费缓冲区
+  std::mutex mutex_;                ///< 互斥锁（用于缓冲区与条件变量）
+  std::condition_variable condPro_; ///< 生产者条件变量
+  std::condition_variable condCon_; ///< 消费者条件变量
+  std::thread thread_;              ///< 工作线程
+  Functor callBack_;                ///< 回调函数
   std::chrono::milliseconds milliseco_; ///< 最大等待时间
 };
 } // namespace zlog

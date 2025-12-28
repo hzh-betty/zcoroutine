@@ -1,7 +1,7 @@
 #ifndef ZLOG_BUFFER_H_
 #define ZLOG_BUFFER_H_
 #include <cstddef>
-#include <vector>
+
 namespace zlog {
 // 缓冲区大小常量定义
 static constexpr size_t DEFAULT_BUFFER_SIZE =
@@ -10,18 +10,27 @@ static constexpr size_t THRESHOLD_BUFFER_SIZE =
     1024 * 1024 * 8; ///< 阈值缓冲区大小：8MB
 static constexpr size_t INCREMENT_BUFFER_SIZE =
     1024 * 1024 * 1; ///< 增量缓冲区大小：1MB
+static constexpr size_t MAX_BUFFER_SIZE =
+    1024 * 1024 * 512; ///< 最大缓冲区大小：512MB
 
 /**
  * @brief 双缓冲区类
  * 用于异步日志系统的缓冲区管理，支持动态扩容
+ * 之所以不用 std::vector 是因为频繁的构造与析构调用__memset_avx2_unaligned_erms
  */
-class Buffer {
+class alignas(64) Buffer {
 public:
   /**
    * @brief 构造函数
    * 初始化缓冲区为默认大小
    */
   Buffer();
+
+  /**
+   * @brief 析构函数
+   * 释放缓冲区内存
+   */
+  ~Buffer();
 
   /**
    * @brief 向缓冲区写入数据
@@ -71,6 +80,12 @@ public:
    */
   bool empty() const;
 
+  /**
+   * @brief 获取缓冲区容量
+   * @return 缓冲区总大小
+   */
+  size_t capacity() const { return capacity_; }
+
 private:
   /**
    * @brief 确保缓冲区有足够空间
@@ -85,9 +100,10 @@ private:
   void moveWriter(size_t len);
 
 private:
-  std::vector<char> buffer_; ///< 缓冲区
-  size_t writerIdx_;         ///< 当前可写数据的下标
-  size_t readerIdx_;         ///< 当前可读数据的下标
+  char *data_;       ///< 缓冲区指针
+  size_t capacity_;  ///< 缓冲区总容量
+  size_t writerIdx_; ///< 当前可写数据的下标
+  size_t readerIdx_; ///< 当前可读数据的下标
 };
 } // namespace zlog
 
