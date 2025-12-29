@@ -80,13 +80,3 @@ if(TEST_INTEGRATION_SRCS)
         message(STATUS "Configured integration test: ${test_name}")
     endforeach()
 endif()
-
-# Benchmark 可执行文件
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/http_server.cc)
-    add_executable(http_server_benchmark ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/http_server.cc)
-    target_link_libraries(http_server_benchmark PRIVATE
-            zcoroutine_shared
-            pthread
-    )
-    message(STATUS "Configured benchmark: http_server")
-endif()
