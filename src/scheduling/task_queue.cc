@@ -5,7 +5,7 @@ namespace zcoroutine {
 void TaskQueue::push(const Task &task) {
   {
     SpinlockGuard lock(spinlock_);
-    tasks_.push_back(task);
+    tasks_.push(task);
   }
   semaphore_.notify(); // 唤醒一个等待的线程
 }
@@ -23,14 +23,14 @@ bool TaskQueue::pop(Task &task) {
         return false;
       }
       task = std::move(tasks_.front());
-      tasks_.pop_front();
+      tasks_.pop();
       return true;
     }
 
     SpinlockGuard lock(spinlock_);
     if (!tasks_.empty()) {
       task = std::move(tasks_.front());
-      tasks_.pop_front();
+      tasks_.pop();
       return true;
     }
     // 如果队列为空，继续等待（spurious wakeup）

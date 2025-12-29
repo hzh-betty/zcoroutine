@@ -1,5 +1,4 @@
 #include "runtime/fiber.h"
-#include "scheduling/fiber_pool.h"
 #include "scheduling/scheduler.h"
 #include "util/thread_context.h"
 #include "util/zcoroutine_logger.h"
@@ -14,7 +13,6 @@ class SchedulerFiberIntegrationTest : public ::testing::Test {
 protected:
   void SetUp() override {
     scheduler_ = std::make_shared<Scheduler>(4, "TestScheduler");
-    pool_ = FiberPool::GetInstance(10, 100);
   }
 
   void TearDown() override {
@@ -22,11 +20,9 @@ protected:
       scheduler_->stop();
     }
     scheduler_.reset();
-    pool_->clear();
   }
 
   Scheduler::ptr scheduler_;
-  FiberPool::ptr pool_;
 };
 
 // ==================== 调度器与协程集成测试 ====================
@@ -49,7 +45,7 @@ TEST_F(SchedulerFiberIntegrationTest, ScheduleSingleFiber) {
 
   scheduler_->start();
 
-  auto fiber = pool_->acquire([&executed]() { executed.store(true); });
+  auto fiber = std::make_shared<Fiber>([&executed]() { executed.store(true); });
 
   scheduler_->schedule(fiber);
 
@@ -67,7 +63,7 @@ TEST_F(SchedulerFiberIntegrationTest, ScheduleMultipleFibers) {
   scheduler_->start();
 
   for (int i = 0; i < fiber_count; ++i) {
-    auto fiber = pool_->acquire([&completed]() { completed.fetch_add(1); });
+    auto fiber = std::make_shared<Fiber>([&completed]() { completed.fetch_add(1); });
     scheduler_->schedule(fiber);
   }
 
@@ -99,18 +95,16 @@ TEST_F(SchedulerFiberIntegrationTest, FiberPoolIntegration) {
 
   scheduler_->start();
 
-  // 使用协程池创建并调度协程
+  // 直接创建并调度协程（之前使用协程池）
   for (int i = 0; i < 50; ++i) {
-    auto fiber = pool_->acquire([&executed]() { executed.fetch_add(1); });
+    auto fiber = std::make_shared<Fiber>([&executed]() { executed.fetch_add(1); });
     scheduler_->schedule(fiber);
   }
 
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
   EXPECT_EQ(executed.load(), 50);
 
-  // 检查协程池统计
-  auto stats = pool_->get_statistics();
-  EXPECT_GT(stats.total_created, 0);
+  // 协程池已移除，跳过统计检查
 
   scheduler_->stop();
 }
@@ -121,7 +115,7 @@ TEST_F(SchedulerFiberIntegrationTest, FiberWithYield) {
 
   scheduler_->start();
 
-  auto fiber = pool_->acquire([&step]() {
+  auto fiber = std::make_shared<Fiber>([&step]() {
     step.store(1);
     Fiber::yield();
     step.store(2);
@@ -181,7 +175,7 @@ TEST_F(SchedulerFiberIntegrationTest, MixedFiberAndCallback) {
   for (int i = 0; i < 50; ++i) {
     if (i % 2 == 0) {
       auto fiber =
-          pool_->acquire([&fiber_count]() { fiber_count.fetch_add(1); });
+          std::make_shared<Fiber>([&fiber_count]() { fiber_count.fetch_add(1); });
       scheduler_->schedule(fiber);
     } else {
       scheduler_->schedule(
@@ -287,7 +281,7 @@ TEST_F(SchedulerFiberIntegrationTest, FiberExceptionHandling) {
   scheduler_->start();
 
   for (int i = 0; i < 10; ++i) {
-    auto fiber = pool_->acquire([&completed, &failed, i]() {
+    auto fiber = std::make_shared<Fiber>([&completed, &failed, i]() {
       if (i % 3 == 0) {
         failed.fetch_add(1);
         throw std::runtime_error("Test exception");
@@ -369,7 +363,7 @@ TEST_F(SchedulerFiberIntegrationTest, FiberStateTracking) {
 
   scheduler_->start();
 
-  auto fiber = pool_->acquire([&states, &states_mutex]() {
+  auto fiber = std::make_shared<Fiber>([&states, &states_mutex]() {
     {
       std::lock_guard<std::mutex> lock(states_mutex);
       states.push_back(Fiber::State::kRunning);
@@ -453,38 +447,6 @@ TEST_F(SchedulerFiberIntegrationTest, SchedulerNameAndIdentity) {
   auto another = std::make_shared<Scheduler>(2, "AnotherScheduler");
   EXPECT_EQ(another->name(), "AnotherScheduler");
   EXPECT_NE(scheduler_->name(), another->name());
-}
-
-// 测试15：协程池复用验证
-TEST_F(SchedulerFiberIntegrationTest, FiberPoolReuseVerification) {
-  pool_->clear();
-  scheduler_->start();
-
-  // 第一批协程
-  for (int i = 0; i < 20; ++i) {
-    auto fiber = pool_->acquire([]() {});
-    scheduler_->schedule(fiber);
-  }
-
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-  auto stats1 = pool_->get_statistics();
-  size_t created_after_first = stats1.total_created;
-
-  // 第二批协程（应该复用）
-  for (int i = 0; i < 20; ++i) {
-    auto fiber = pool_->acquire([]() {});
-    scheduler_->schedule(fiber);
-  }
-
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-
-  auto stats2 = pool_->get_statistics();
-
-  // 第二批应该有复用
-  EXPECT_GT(stats2.total_reused, 0);
-
-  scheduler_->stop();
 }
 
 int main(int argc, char **argv) {

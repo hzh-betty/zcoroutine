@@ -1,6 +1,7 @@
+#include "timer/timer.h"
+
 #include <sys/time.h>
 
-#include "timer/timer.h"
 #include "timer/timer_manager.h"
 #include "util/zcoroutine_logger.h"
 

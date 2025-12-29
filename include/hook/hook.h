@@ -1,7 +1,6 @@
 #ifndef ZCOROUTINE_HOOK_H_
 #define ZCOROUTINE_HOOK_H_
 
-#include <cstdint>
 #include <ctime>
 #include <sys/socket.h>
 #include <sys/types.h>

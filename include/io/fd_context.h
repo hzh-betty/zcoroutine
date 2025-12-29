@@ -1,15 +1,17 @@
-#ifndef ZCOROUTINE_FD_CONTEXT_H
-#define ZCOROUTINE_FD_CONTEXT_H
+#ifndef ZCOROUTINE_FD_CONTEXT_H_
+#define ZCOROUTINE_FD_CONTEXT_H_
 
-#include "runtime/fiber.h"
-#include "util/noncopyable.h"
+#include <sys/epoll.h>
+
 #include <functional>
 #include <memory>
 #include <mutex>
-#include <sys/epoll.h>
+
+#include "util/noncopyable.h"
 
 namespace zcoroutine {
 
+  class Fiber;
 /**
  * @brief 文件描述符上下文类
  *
@@ -53,7 +55,7 @@ public:
    * 存储每个事件类型的协程和回调函数。
    */
   struct EventContext {
-    Fiber::ptr fiber;               // 等待该事件的协程
+    std::shared_ptr<Fiber> fiber;               // 等待该事件的协程
     std::function<void()> callback; // 事件回调函数
   };
 
@@ -125,4 +127,4 @@ private:
 
 } // namespace zcoroutine
 
-#endif // ZCOROUTINE_FD_CONTEXT_H
+#endif // ZCOROUTINE_FD_CONTEXT_H_

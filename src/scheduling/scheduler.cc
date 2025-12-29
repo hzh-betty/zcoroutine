@@ -1,8 +1,10 @@
 #include "scheduling/scheduler.h"
 
+#include <utility>
+
 #include "util/thread_context.h"
 #include "util/zcoroutine_logger.h"
-#include <utility>
+
 
 namespace zcoroutine {
 
@@ -218,8 +220,8 @@ void Scheduler::schedule_loop() {
       if (fiber->state() == Fiber::State::kTerminated) {
         ZCOROUTINE_LOG_DEBUG("Scheduler[{}] fiber terminated: name={}, id={}",
                              name_, fiber->name(), fiber->id());
-        // 归还协程到池中
-        FiberPool::GetInstance()->release(fiber);
+        // // 归还协程到池中
+        // FiberPool::GetInstance()->release(fiber);
       }
       // 如果协程挂起，说明在等待外部事件（IO、定时器等）
       // 不自动重新调度，由事件触发时显式调度

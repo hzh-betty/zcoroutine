@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "runtime/fiber.h"
-#include "scheduling/fiber_pool.h"
 #include "scheduling/task_queue.h"
 #include "util/zcoroutine_logger.h"
 
@@ -68,14 +67,10 @@ public:
   template <class F, class... Args> void schedule(F &&f, Args &&...args) {
     auto func = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
 
-    // 从协程池获取协程执行任务
-    auto fiber = FiberPool::GetInstance()->acquire(std::move(func));
-    Task task(fiber);
+    const Task task(std::move(func));
     task_queue_->push(task);
 
-    ZCOROUTINE_LOG_DEBUG("Scheduler[{}] scheduled fiber from pool, name={}, "
-                         "id={}, queue_size={}",
-                         name_, fiber->name(), fiber->id(),
+    ZCOROUTINE_LOG_DEBUG("Scheduler[{}] scheduled task, queue_size={}", name_,
                          task_queue_->size());
   }
 
@@ -136,7 +131,7 @@ protected:
   // 共享栈相关
   bool use_shared_stack_ = false; // 是否使用共享栈模式
   SharedStack::ptr shared_stack_ =
-      nullptr; // 共享栈（仅当use_shared_stack_为true时有效）
+      nullptr; // 共享栈
 };
 
 } // namespace zcoroutine

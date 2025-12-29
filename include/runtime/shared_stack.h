@@ -1,10 +1,12 @@
 #ifndef ZCOROUTINE_SHARED_STACK_H_
 #define ZCOROUTINE_SHARED_STACK_H_
 
-#include "util/noncopyable.h"
 #include <atomic>
 #include <memory>
 #include <vector>
+
+#include "util/noncopyable.h"
+
 
 namespace zcoroutine {
 

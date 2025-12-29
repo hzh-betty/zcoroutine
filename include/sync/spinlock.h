@@ -1,9 +1,10 @@
 #ifndef ZCOROUTINE_SPINLOCK_H_
 #define ZCOROUTINE_SPINLOCK_H_
-
-#include "util/noncopyable.h"
 #include <atomic>
 #include <thread>
+
+#include "util/noncopyable.h"
+
 
 namespace zcoroutine {
 

@@ -1,8 +1,10 @@
 #ifndef ZCOROUTINE_SEMAPHORE_H_
 #define ZCOROUTINE_SEMAPHORE_H_
 
-#include "util/noncopyable.h"
 #include <semaphore.h>
+
+#include "util/noncopyable.h"
+
 
 namespace zcoroutine {
 

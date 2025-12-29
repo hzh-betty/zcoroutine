@@ -1,10 +1,12 @@
 #ifndef ZCOROUTINE_EPOLL_POLLER_H_
 #define ZCOROUTINE_EPOLL_POLLER_H_
 
-#include "util/noncopyable.h"
-#include <memory>
 #include <sys/epoll.h>
+
+#include <memory>
 #include <vector>
+
+#include "util/noncopyable.h"
 
 namespace zcoroutine {
 

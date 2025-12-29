@@ -1,11 +1,11 @@
 #include "util/thread_context.h"
+
+#include <memory>
+
 #include "runtime/context.h"
 #include "runtime/fiber.h"
 #include "runtime/shared_stack.h"
 #include "util/zcoroutine_logger.h"
-
-#include <memory>
-
 namespace zcoroutine {
 
 constexpr int ThreadContext::kMaxCallStackDepth;

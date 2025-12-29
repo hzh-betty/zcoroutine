@@ -1,15 +1,15 @@
 #include "runtime/shared_stack.h"
+
+#include <cstring>
+
 #include "runtime/fiber.h"
 #include "runtime/stack_allocator.h"
 #include "util/thread_context.h"
 #include "util/zcoroutine_logger.h"
-#include <cstring>
+
 
 namespace zcoroutine {
 
-// ============================================================================
-// SharedStackBuffer 实现
-// ============================================================================
 
 SharedStackBuffer::SharedStackBuffer(size_t stack_size)
     : stack_size_(stack_size) {
@@ -40,9 +40,6 @@ SharedStackBuffer::~SharedStackBuffer() {
   }
 }
 
-// ============================================================================
-// SharedStack 实现
-// ============================================================================
 
 constexpr size_t SharedStack::kDefaultStackSize;
 constexpr int SharedStack::kDefaultStackCount;
@@ -189,9 +186,7 @@ SwitchStack::~SwitchStack() {
   }
 }
 
-// ============================================================================
-// SharedContext 实现
-// ============================================================================
+
 
 SharedContext::~SharedContext() {
   if (save_buffer_) {
