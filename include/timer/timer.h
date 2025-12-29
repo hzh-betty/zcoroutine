@@ -54,7 +54,6 @@ public:
    */
   const Callback &callback() const { return callback_; }
 
-private:
   /**
    * @brief 私有构造函数，只能通过TimerManager创建
    */

@@ -695,7 +695,7 @@ int setsockopt(int sockfd, int level, int optname, const void *optval,
       zcoroutine::SocketStatus::ptr ctx =
           zcoroutine::StatusTable::GetInstance()->get(sockfd);
       if (ctx) {
-        const timeval *tv = static_cast<const timeval *>(optval);
+        const auto *tv = static_cast<const timeval *>(optval);
         uint64_t timeout_ms = tv->tv_sec * 1000 + tv->tv_usec / 1000;
         ctx->set_timeout(optname, timeout_ms);
       }

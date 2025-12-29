@@ -22,8 +22,9 @@ public:
    * @brief 构造函数
    * @param thread_count 线程数量
    * @param name 调度器名称
+   * @param use_shared_stack 是否使用共享栈
    */
-  IoScheduler(int thread_count, const std::string &name);
+  IoScheduler(int thread_count, const std::string &name, bool use_shared_stack = false);
 
   /**
    * @brief 析构函数
@@ -48,7 +49,7 @@ public:
    * @return 成功返回0，失败返回-1
    */
   int add_event(int fd, FdContext::Event event,
-                std::function<void()> callback = nullptr);
+                const std::function<void()>& callback = nullptr);
 
   /**
    * @brief 删除IO事件

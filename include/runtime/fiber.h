@@ -19,7 +19,7 @@ class Scheduler;
  * @brief 协程类
  * 管理协程的生命周期、状态和上下文切换
  */
-class Fiber : public std::enable_shared_from_this<Fiber> {
+class Fiber : public std::enable_shared_from_this<Fiber>, public NonCopyable {
 public:
   using ptr = std::shared_ptr<Fiber>;
 
@@ -72,6 +72,19 @@ public:
    */
   Fiber(std::function<void()> func, SharedStack *shared_stack,
         const std::string &name = "");
+
+  /**
+   * @brief 移动构造函数
+   * @param other 右值引用对象
+   */
+  Fiber(Fiber &&other) noexcept;
+
+
+  /**
+   * @brief 移动复制函数
+   * @param other 右值引用对象
+  */
+  Fiber &operator=(Fiber &&other) noexcept;
 
   /**
    * @brief 析构函数
@@ -164,7 +177,7 @@ public:
    * @brief 设置当前协程
    * @param fiber 协程指针
    */
-  static void set_this(Fiber::ptr fiber);
+  static void set_this(const Fiber::ptr& fiber);
 
 private:
   // Scheduler需要访问私有构造函数创建main_fiber
@@ -187,7 +200,7 @@ private:
    * @param curr 当前协程
    * @param target 目标协程
    */
-  static void co_swap(Fiber::ptr curr, Fiber::ptr target);
+  static void co_swap(const Fiber::ptr& curr, const Fiber::ptr& target);
 
   std::string name_;            // 协程名称
   uint64_t id_ = 0;             // 协程唯一ID

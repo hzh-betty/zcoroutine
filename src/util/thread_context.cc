@@ -22,16 +22,18 @@ ThreadContext *ThreadContext::get_current() {
   return t_thread_context.get();
 }
 
-void ThreadContext::set_main_fiber(Fiber::ptr fiber) {
+void ThreadContext::set_main_fiber(const Fiber::ptr& fiber) {
   auto *ctx = get_current();
   ctx->scheduler_ctx_.main_fiber = fiber;
   if (fiber) {
     ctx->scheduler_ctx_.call_stack_size = 0;
+
+    // 将 main_fiber 压入调用栈
     if (ctx->scheduler_ctx_.call_stack_size < kMaxCallStackDepth) {
       ctx->scheduler_ctx_.call_stack[ctx->scheduler_ctx_.call_stack_size++] =
           fiber;
     }
-    ctx->scheduler_ctx_.current_fiber = fiber;
+    ctx->scheduler_ctx_.current_fiber = fiber; // 设置当前协程为 current fiber
   } else {
     ctx->scheduler_ctx_.call_stack_size = 0;
     ctx->scheduler_ctx_.current_fiber.reset();
@@ -42,7 +44,7 @@ Fiber::ptr ThreadContext::get_main_fiber() {
   return get_current()->scheduler_ctx_.main_fiber.lock();
 }
 
-void ThreadContext::set_current_fiber(Fiber::ptr fiber) {
+void ThreadContext::set_current_fiber(const Fiber::ptr& fiber) {
   get_current()->scheduler_ctx_.current_fiber = fiber;
 }
 
@@ -50,7 +52,7 @@ Fiber::ptr ThreadContext::get_current_fiber() {
   return get_current()->scheduler_ctx_.current_fiber.lock();
 }
 
-void ThreadContext::set_scheduler_fiber(Fiber::ptr fiber) {
+void ThreadContext::set_scheduler_fiber(const Fiber::ptr& fiber) {
   get_current()->scheduler_ctx_.scheduler_fiber = fiber;
 }
 
@@ -122,7 +124,7 @@ Context *ThreadContext::get_switch_context() {
   return ctx->shared_stack_ctx_.switch_context.get();
 }
 
-void ThreadContext::set_pending_fiber(Fiber::ptr fiber) {
+void ThreadContext::set_pending_fiber(const Fiber::ptr& fiber) {
   get_current()->shared_stack_ctx_.pending_fiber = fiber;
 }
 
@@ -138,7 +140,7 @@ bool ThreadContext::is_hook_enabled() {
   return get_current()->hook_ctx_.hook_enable;
 }
 
-void ThreadContext::push_call_stack(Fiber::ptr fiber) {
+void ThreadContext::push_call_stack(const Fiber::ptr& fiber) {
   auto *ctx = get_current();
   if (!fiber)
     return;

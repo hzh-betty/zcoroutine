@@ -58,7 +58,7 @@ Fiber::ptr FiberPool::acquire(std::function<void()> func) {
   return new_fiber;
 }
 
-void FiberPool::release(Fiber::ptr fiber) {
+void FiberPool::release(const Fiber::ptr& fiber) {
   if (!fiber) {
     ZCOROUTINE_LOG_WARN("FiberPool::release received null fiber");
     return;

@@ -58,9 +58,9 @@ TEST_F(SchedulerTest, ScheduleFiber) {
   scheduler.start();
 
   std::atomic<int> count{0};
-
+  Fiber::ptr fiber;
   for (int i = 0; i < 50; ++i) {
-    auto fiber = std::make_shared<Fiber>([&count]() {
+    fiber = std::make_shared<Fiber>([&count]() {
       count++;
       Fiber::yield();
       count++;

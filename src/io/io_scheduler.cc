@@ -14,8 +14,8 @@ FdContext::ptr IoScheduler::get_fd_context(int fd, bool auto_create) {
   return fd_context_table_->get(fd);
 }
 
-IoScheduler::IoScheduler(int thread_count, const std::string &name)
-    : Scheduler(thread_count, name) {
+IoScheduler::IoScheduler(int thread_count, const std::string &name, bool use_shared_stack)
+    : Scheduler(thread_count, name,use_shared_stack ) {
   ZCOROUTINE_LOG_INFO(
       "IoScheduler::IoScheduler initializing name={}, thread_count={}", name,
       thread_count);
@@ -103,7 +103,7 @@ void IoScheduler::stop() {
 }
 
 int IoScheduler::add_event(int fd, FdContext::Event event,
-                           std::function<void()> callback) {
+                           const std::function<void()>& callback) {
   ZCOROUTINE_LOG_DEBUG(
       "IoScheduler::add_event fd={}, event={}, has_callback={}", fd,
       FdContext::event_to_string(event), callback != nullptr);
@@ -270,7 +270,7 @@ Timer::ptr IoScheduler::add_condition_timer(uint64_t timeout,
       recurring);
   // 直接调用 TimerManager，它会通过回调自动唤醒IO线程
   return timer_manager_->add_condition_timer(timeout, std::move(callback),
-                                             weak_cond, recurring);
+                                             std::move(weak_cond), recurring);
 }
 
 void IoScheduler::trigger_event(int fd, FdContext::Event event) {
@@ -360,7 +360,7 @@ void IoScheduler::io_thread_func() {
       }
 
       // 处理IO事件
-      FdContext *fd_ctx = static_cast<FdContext *>(ev.data.ptr);
+      auto *fd_ctx = static_cast<FdContext *>(ev.data.ptr);
       int fd = fd_ctx->fd();
 
       if (ev.events & EPOLLIN) {

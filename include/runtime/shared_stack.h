@@ -259,7 +259,7 @@ public:
    * @brief 清除占用标记（协程析构或终止时调用）
    * @param owner 所属的Fiber指针，用于检查是否是占用者
    */
-  void clear_occupy(Fiber *owner);
+  void clear_occupy(const Fiber *owner);
 
   /**
    * @brief 获取保存的栈指针（用于恢复）

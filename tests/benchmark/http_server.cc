@@ -48,7 +48,7 @@ void handle_client_fiber(int client_fd) {
     if (ret > 0) {
       ZCOROUTINE_LOG_DEBUG("Received {} bytes from fd={}", ret, client_fd);
       // 模拟处理请求
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
 
       // 发送HTTP响应（hook会自动处理EAGAIN）
       int send_ret = send(client_fd, HTTP_RESPONSE, strlen(HTTP_RESPONSE), 0);
@@ -85,6 +85,7 @@ void register_accept_event() {
 
 // accept回调函数（在IO线程中执行）
 void accept_connection() {
+  set_hook_enable(true);
   struct sockaddr_in client_addr;
   socklen_t client_len = sizeof(client_addr);
   memset(&client_addr, 0, sizeof(client_addr));
@@ -110,12 +111,6 @@ void accept_connection() {
 
   ZCOROUTINE_LOG_DEBUG("Accepted connection, client_fd={}", client_fd);
 
-  // 将客户端处理任务调度到协程中执行
-  // if (g_io_scheduler) {
-  //     g_io_scheduler->schedule([client_fd]() {
-  //         handle_client_fiber(client_fd);
-  //     });
-  // }
   if (g_io_scheduler) {
     g_io_scheduler->add_event(client_fd, FdContext::kRead, [client_fd]() {
       handle_client_fiber(client_fd);
@@ -188,7 +183,7 @@ int main(int argc, char *argv[]) {
             << std::endl;
 
   // 创建IoScheduler（使用指定数量的工作线程）
-  auto io_scheduler = std::make_shared<IoScheduler>(thread_num, "HttpServer");
+  auto io_scheduler = std::make_shared<IoScheduler>(thread_num, "HttpServer",true);
   g_io_scheduler = io_scheduler;
 
   g_io_scheduler->start();

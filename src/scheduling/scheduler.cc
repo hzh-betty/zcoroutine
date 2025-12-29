@@ -106,12 +106,13 @@ void Scheduler::schedule(Fiber::ptr fiber) {
     return;
   }
 
-  Task task(fiber);
+  ZCOROUTINE_LOG_DEBUG(
+    "Scheduler[{}] scheduled fiber name={}, id={}, queue_size={}", name_,
+    fiber->name(), fiber->id(), task_queue_->size());
+
+  const Task task(std::move(fiber));
   task_queue_->push(task);
 
-  ZCOROUTINE_LOG_DEBUG(
-      "Scheduler[{}] scheduled fiber name={}, id={}, queue_size={}", name_,
-      fiber->name(), fiber->id(), task_queue_->size());
 }
 
 Scheduler *Scheduler::get_this() { return ThreadContext::get_scheduler(); }

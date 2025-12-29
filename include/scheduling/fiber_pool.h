@@ -53,7 +53,7 @@ public:
    * @param fiber 协程指针
    * 协程必须处于Terminated状态才能归还
    */
-  void release(Fiber::ptr fiber);
+  void release(const Fiber::ptr& fiber);
 
   /**
    * @brief 调整池大小

@@ -26,7 +26,7 @@ Timer::ptr TimerManager::add_timer(uint64_t timeout,
   ZCOROUTINE_LOG_DEBUG(
       "TimerManager::add_timer called, timeout={}ms, recurring={}", timeout,
       recurring);
-  Timer::ptr timer(new Timer(timeout, callback, recurring, this));
+  auto timer = std::make_shared<Timer>(timeout, std::move(callback), recurring, this);
   insert_timer(timer);
   ZCOROUTINE_LOG_DEBUG("TimerManager::add_timer succeeded, total_timers={}",
                        timers_.size());
@@ -42,8 +42,8 @@ Timer::ptr TimerManager::add_condition_timer(uint64_t timeout,
       timeout, recurring);
 
   // 包装回调函数，添加条件检查
-  auto wrapper_callback = [weak_cond, callback = std::move(callback)]() {
-    if (auto ptr = weak_cond.lock()) {
+  auto wrapper_callback = [weak = std::move(weak_cond), callback = std::move(callback)]() {
+    if (auto ptr = weak.lock()) {
       callback();
     }
   };

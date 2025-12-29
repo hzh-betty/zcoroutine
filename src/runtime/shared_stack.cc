@@ -86,9 +86,6 @@ SharedStackBuffer *SharedStack::allocate() {
   return stack_array_[idx].get();
 }
 
-// ============================================================================
-// SwitchStack 实现
-// ============================================================================
 
 constexpr size_t SwitchStack::kDefaultSwitchStackSize;
 
@@ -224,9 +221,9 @@ void SharedContext::save_stack_buffer(void *stack_sp) {
     return;
   }
 
-  size_t len = static_cast<size_t>(stack_top - sp);
+  auto len = static_cast<size_t>(stack_top - sp);
 
-  // 释放旧的保存缓冲区
+  // 释放旧地保存缓冲区
   if (save_buffer_) {
     StackAllocator::deallocate(save_buffer_, save_size_);
     save_buffer_ = nullptr;
@@ -285,7 +282,7 @@ void SharedContext::reset() {
   saved_stack_sp_ = nullptr;
 }
 
-void SharedContext::clear_occupy(Fiber *owner) {
+void SharedContext::clear_occupy(const Fiber *owner) {
   if (shared_stack_buffer_ && shared_stack_buffer_->occupy_fiber() == owner) {
     // 只有当owner是占用者时才清除
     shared_stack_buffer_->set_occupy_fiber(nullptr);

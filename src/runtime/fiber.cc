@@ -2,7 +2,8 @@
 #include "util/thread_context.h"
 #include "util/zcoroutine_logger.h"
 #include <cassert>
-#include <cstring>
+#include <utility>
+
 
 namespace zcoroutine {
 // 静态成员初始化
@@ -53,8 +54,8 @@ void Fiber::confirm_switch_target() {
 // 统一的协程切换函数
 // 对于共享栈协程，先切换到专用 switch stack，然后执行栈保存/恢复操作
 // 整个过程不使用任何 magic number，完全 ABI 安全
-void Fiber::co_swap(Fiber::ptr curr, Fiber::ptr target) {
-  bool needs_switch_stack =
+void Fiber::co_swap(const Fiber::ptr& curr, const Fiber::ptr& target) {
+  const bool needs_switch_stack =
       curr->shared_ctx_ && curr->shared_ctx_->is_shared_stack() ||
       target->shared_ctx_ && target->shared_ctx_->is_shared_stack();
 
@@ -206,6 +207,31 @@ Fiber::Fiber(std::function<void()> func, SharedStack *shared_stack,
                       name_, id_);
 }
 
+Fiber::Fiber(Fiber &&other) noexcept {
+  name_ = std::move(other.name_);
+  id_ = other.id_;
+  state_ = other.state_;
+  stack_size_ = other.stack_size_;
+  stack_ptr_ = other.stack_ptr_;
+  context_ = std::move(other.context_);
+  callback_ = std::move(other.callback_);
+  shared_ctx_ = std::move(other.shared_ctx_);
+}
+
+Fiber & Fiber::operator=(Fiber &&other) noexcept {
+  if (this != &other) {
+    name_ = std::move(other.name_);
+    id_ = other.id_;
+    state_ = other.state_;
+    stack_size_ = other.stack_size_;
+    stack_ptr_ = other.stack_ptr_;
+    context_ = std::move(other.context_);
+    callback_ = std::move(other.callback_);
+    shared_ctx_ = std::move(other.shared_ctx_);
+  }
+  return *this;
+}
+
 Fiber::~Fiber() {
   ZCOROUTINE_LOG_DEBUG(
       "Fiber destroying: name={}, id={}, state={}, is_shared_stack={}", name_,
@@ -347,7 +373,7 @@ void Fiber::main_func() {
 
 Fiber::ptr Fiber::get_this() { return ThreadContext::get_current_fiber(); }
 
-void Fiber::set_this(Fiber::ptr fiber) {
+void Fiber::set_this(const Fiber::ptr& fiber) {
   ThreadContext::set_current_fiber(fiber);
 }
 
