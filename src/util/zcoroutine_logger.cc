@@ -12,4 +12,8 @@ void init_logger(const zlog::LogLevel::value level) {
   builder->buildLoggerSink<zlog::StdOutSink>();
   builder->build();
 }
+ zlog::Logger::ptr get_logger() {
+  static zlog::Logger::ptr logger = zlog::getLogger("zcoroutine_logger");
+  return logger;
+}
 } // namespace zcoroutine

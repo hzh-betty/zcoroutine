@@ -41,7 +41,7 @@ void handle_client_fiber(int client_fd) {
     if (ret > 0) {
       ZCOROUTINE_LOG_DEBUG("Received {} bytes from fd={}", ret, client_fd);
       // 模拟处理请求
-      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+      // std::this_thread::sleep_for(std::chrono::milliseconds(2));
 
       // 发送HTTP响应（hook会自动处理EAGAIN）
       int send_ret = send(client_fd, HTTP_RESPONSE, strlen(HTTP_RESPONSE), 0);
@@ -116,11 +116,11 @@ void accept_connection() {
 
 int main(int argc, char *argv[]) {
   // 初始化日志系统
-  zcoroutine::init_logger(zlog::LogLevel::value::DEBUG);
+  zcoroutine::init_logger(zlog::LogLevel::value::WARNING);
 
   // 默认端口
   int port = 8080;
-  int thread_num = 4;
+  int thread_num = std::thread::hardware_concurrency() * 2;
 
   if (argc > 1) {
     port = std::atoi(argv[1]);
