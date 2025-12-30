@@ -12,8 +12,8 @@ std::atomic<uint64_t> Fiber::s_fiber_count_{0};
 
 // 主协程构造函数
 Fiber::Fiber()
-    : name_("main_fiber"), id_(0), state_(State::kRunning), stack_size_(0),
-      context_(std::make_unique<Context>()),
+    : state_(State::kRunning), id_(0), stack_ptr_(nullptr), stack_size_(0),
+      context_(std::make_unique<Context>()), name_("main_fiber"),
       shared_ctx_(std::make_unique<SharedContext>()) {
 
   // 主协程直接获取当前上下文
@@ -96,8 +96,8 @@ void Fiber::co_swap(const Fiber::ptr& curr, const Fiber::ptr& target) {
 // 普通协程构造函数
 Fiber::Fiber(std::function<void()> func, size_t stack_size,
              const std::string &name, bool use_shared_stack)
-    : stack_size_(stack_size), context_(std::make_unique<Context>()),
-      callback_(std::move(func)),
+    : state_(State::kReady), stack_ptr_(nullptr), stack_size_(stack_size),
+      context_(std::make_unique<Context>()), callback_(std::move(func)),
       shared_ctx_(std::make_unique<SharedContext>()) {
   // 检查全局配置或显式指定使用共享栈
   bool should_use_shared =
@@ -166,7 +166,8 @@ Fiber::Fiber(std::function<void()> func, size_t stack_size,
 // 使用指定共享栈的构造函数
 Fiber::Fiber(std::function<void()> func, SharedStack *shared_stack,
              const std::string &name)
-    : context_(std::make_unique<Context>()), callback_(std::move(func)),
+    : state_(State::kReady), stack_ptr_(nullptr), stack_size_(0),
+      context_(std::make_unique<Context>()), callback_(std::move(func)),
       shared_ctx_(std::make_unique<SharedContext>()) {
   // 分配全局唯一ID
   id_ = s_fiber_count_.fetch_add(1, std::memory_order_relaxed);
@@ -208,25 +209,21 @@ Fiber::Fiber(std::function<void()> func, SharedStack *shared_stack,
                       name_, id_);
 }
 
-Fiber::Fiber(Fiber &&other) noexcept {
-  name_ = std::move(other.name_);
-  id_ = other.id_;
-  state_ = other.state_;
-  stack_size_ = other.stack_size_;
-  stack_ptr_ = other.stack_ptr_;
-  context_ = std::move(other.context_);
-  callback_ = std::move(other.callback_);
-  shared_ctx_ = std::move(other.shared_ctx_);
+Fiber::Fiber(Fiber &&other) noexcept
+    : state_(other.state_), id_(other.id_), stack_ptr_(other.stack_ptr_),
+      stack_size_(other.stack_size_), context_(std::move(other.context_)),
+      name_(std::move(other.name_)), callback_(std::move(other.callback_)),
+      shared_ctx_(std::move(other.shared_ctx_)) {
 }
 
 Fiber & Fiber::operator=(Fiber &&other) noexcept {
   if (this != &other) {
-    name_ = std::move(other.name_);
-    id_ = other.id_;
     state_ = other.state_;
-    stack_size_ = other.stack_size_;
+    id_ = other.id_;
     stack_ptr_ = other.stack_ptr_;
+    stack_size_ = other.stack_size_;
     context_ = std::move(other.context_);
+    name_ = std::move(other.name_);
     callback_ = std::move(other.callback_);
     shared_ctx_ = std::move(other.shared_ctx_);
   }

@@ -118,11 +118,11 @@ public:
   void reset_event_context(EventContext &ctx);
 
 private:
-  int fd_;                 // 文件描述符
-  int events_ = kNone;     // 当前注册的事件
+  int fd_;                 // 文件描述符 - 最常访问
+  int events_ = kNone;     // 当前注册的事件 - 常访问
   EventContext read_ctx_;  // 读事件上下文
   EventContext write_ctx_; // 写事件上下文
-  std::mutex mutex_;       // 保护上下文的互斥锁
+  std::mutex mutex_;       // 保护上下文的互斥锁 - 较少竞争时放后面
 };
 
 } // namespace zcoroutine

@@ -4,19 +4,27 @@
 namespace zcoroutine {
 
 void TaskQueue::push(const Task &task) {
+  bool was_empty;
   {
     std::lock_guard<Spinlock> lock(spinlock_);
+    was_empty = tasks_.empty();
     tasks_.push(task);
   }
-  cv_.notify_one();
+  if (was_empty) {
+    cv_.notify_one();
+  }
 }
 
 void TaskQueue::push(Task &&task) {
+  bool was_empty;
   {
     std::lock_guard<Spinlock> lock(spinlock_);
+    was_empty = tasks_.empty();
     tasks_.push(std::move(task));
   }
-  cv_.notify_one();
+  if (was_empty) {
+    cv_.notify_one();
+  }
 }
 
 bool TaskQueue::pop(Task &task) {

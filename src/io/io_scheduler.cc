@@ -320,13 +320,27 @@ void IoScheduler::io_thread_func() {
   ZCOROUTINE_LOG_INFO("IoScheduler::io_thread_func IO thread started");
 
   std::vector<epoll_event> events;
+  events.reserve(256); // 预分配容量，减少重新分配
+  
+  // 动态timeout优化参数
+  static constexpr int kMinTimeout = 1;     // 最小超时 1ms
+  static constexpr int kMaxTimeout = 5000;  // 最大超时 5s
+  static constexpr int kIdleThreshold = 10; // 空闲阈值
+  int idle_count = 0;
 
   while (!stopping_.load(std::memory_order_relaxed)) {
     // 获取下一个定时器超时时间
     int timeout = timer_manager_->get_next_timeout();
+    
+    // 动态调整timeout：根据负载情况调整
     if (timeout < 0) {
-      timeout = 5000; // 默认5秒
+      // 没有定时器，根据空闲程度动态调整
+      timeout = (idle_count > kIdleThreshold) ? kMaxTimeout : 100;
+    } else {
+      // 限制在合理范围内
+      timeout = std::max(kMinTimeout, std::min(timeout, kMaxTimeout));
     }
+    
     ZCOROUTINE_LOG_DEBUG(
         "IoScheduler::io_thread_func waiting for events, timeout={}ms",
         timeout);
@@ -341,7 +355,11 @@ void IoScheduler::io_thread_func() {
       continue;
     }
 
-    if (nfds > 0) {
+    // 动态调整空闲计数
+    if (nfds == 0) {
+      ++idle_count;
+    } else {
+      idle_count = 0; // 有事件时重置
       ZCOROUTINE_LOG_DEBUG(
           "IoScheduler::io_thread_func epoll_wait returned nfds={}", nfds);
     }
