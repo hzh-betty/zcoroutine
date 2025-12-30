@@ -7,7 +7,6 @@
 
 #include "util/noncopyable.h"
 
-
 namespace zcoroutine {
 
 // 前向声明
@@ -272,8 +271,9 @@ private:
   bool is_shared_stack_ = false;                     // 是否使用共享栈
   SharedStackBuffer *shared_stack_buffer_ = nullptr; // 共享栈缓冲区
   void *saved_stack_sp_ = nullptr; // 保存时的栈指针（用于恢复时确定位置）
-  char *save_buffer_ = nullptr; // 栈内容保存缓冲区
-  size_t save_size_ = 0;        // 保存的栈大小
+  char *save_buffer_ = nullptr;     // 栈内容保存缓冲区
+  size_t save_size_ = 0;            // 保存的栈大小
+  size_t save_buffer_capacity_ = 0; // 缓冲区容量
 };
 
 } // namespace zcoroutine

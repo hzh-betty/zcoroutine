@@ -11,6 +11,14 @@ void TaskQueue::push(const Task &task) {
   cv_.notify_one();
 }
 
+void TaskQueue::push(Task &&task) {
+  {
+    std::lock_guard<Spinlock> lock(spinlock_);
+    tasks_.push(std::move(task));
+  }
+  cv_.notify_one();
+}
+
 bool TaskQueue::pop(Task &task) {
   std::unique_lock<Spinlock> lock(spinlock_);
   cv_.wait(lock, [this] { return stopped_ || !tasks_.empty(); });

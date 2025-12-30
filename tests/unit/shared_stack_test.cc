@@ -856,7 +856,6 @@ TEST_F(SharedStackTest, SchedulerSharedStackExecution) {
   EXPECT_EQ(counter.load(), task_count);
 }
 
-
 TEST_F(SharedStackTest, SharedStackInvalidParams) {
   // 测试构造函数非法参数，应使用默认值
   SharedStack stack(-1, 0);
@@ -868,47 +867,50 @@ TEST_F(SharedStackTest, SharedContextSaveRestoreEdgeCases) {
   SharedContext ctx;
   size_t stack_size = 4096;
   SharedStackBuffer buffer(stack_size);
-  
+
   // 1. 未初始化/空指针测试
   ctx.save_stack_buffer(nullptr); // Should return early
-  ctx.restore_stack_buffer(); // Should return early
-  
+  ctx.restore_stack_buffer();     // Should return early
+
   ctx.init_shared(&buffer);
-  
-  char* stack_top = buffer.stack_top();
-  
+
+  char *stack_top = buffer.stack_top();
+
   // 2. save_stack_buffer 非法 stack_sp (>= top)
   ctx.save_stack_buffer(stack_top); // Should log warn and return
   EXPECT_EQ(ctx.save_size(), 0);
-  
+
   ctx.save_stack_buffer(stack_top + 10);
   EXPECT_EQ(ctx.save_size(), 0);
 
   // 4. 正常保存
-  char* sp = stack_top - 100;
+  char *sp = stack_top - 100;
   // 模拟栈内容
-  for(int i=0; i<100; ++i) *(sp+i) = (char)i;
-  
+  for (int i = 0; i < 100; ++i)
+    *(sp + i) = (char)i;
+
   ctx.save_stack_buffer(sp);
   EXPECT_EQ(ctx.save_size(), 100);
   EXPECT_NE(ctx.save_buffer(), nullptr);
   EXPECT_EQ(ctx.saved_stack_sp(), sp);
-  
+
   // 5. 正常恢复
   // 先修改栈内容
   memset(sp, 0, 100);
   ctx.restore_stack_buffer();
   // 验证恢复
-  for(int i=0; i<100; ++i) EXPECT_EQ(*(sp+i), (char)i);
-  
+  for (int i = 0; i < 100; ++i)
+    EXPECT_EQ(*(sp + i), (char)i);
+
   // 6. restore_stack_buffer 非法 saved_stack_sp
-  // 场景：SharedContext 被错误地关联到了另一个 StackBuffer，导致 saved_stack_sp 不在范围内
+  // 场景：SharedContext 被错误地关联到了另一个 StackBuffer，导致 saved_stack_sp
+  // 不在范围内
   SharedStackBuffer buffer2(stack_size);
   ctx.init_shared(&buffer2); // 切换到 buffer2
-  
+
   // 此时 saved_stack_sp (指向 buffer1) 对于 buffer2 来说是越界的
   // 应该触发 sp < stack_base || sp >= stack_top 检查
-  ctx.restore_stack_buffer(); 
+  ctx.restore_stack_buffer();
 }
 
 TEST_F(SharedStackTest, SharedContextReset) {
@@ -916,23 +918,22 @@ TEST_F(SharedStackTest, SharedContextReset) {
   size_t stack_size = 4096;
   SharedStackBuffer buffer(stack_size);
   ctx.init_shared(&buffer);
-  
-  char* sp = buffer.stack_top() - 100;
+
+  char *sp = buffer.stack_top() - 100;
   ctx.save_stack_buffer(sp);
   EXPECT_NE(ctx.save_buffer(), nullptr);
   EXPECT_NE(ctx.saved_stack_sp(), nullptr);
-  
+
   ctx.reset();
-  EXPECT_EQ(ctx.save_buffer(), nullptr);
   EXPECT_EQ(ctx.save_size(), 0);
   EXPECT_EQ(ctx.saved_stack_sp(), nullptr);
 }
 
 TEST_F(SharedStackTest, SwitchStackAllocation) {
-    // 覆盖 SwitchStack 构造函数
-    SwitchStack ss(4096);
-    EXPECT_NE(ss.buffer(), nullptr);
-    EXPECT_EQ(ss.size(), 4096);
+  // 覆盖 SwitchStack 构造函数
+  SwitchStack ss(4096);
+  EXPECT_NE(ss.buffer(), nullptr);
+  EXPECT_EQ(ss.size(), 4096);
 }
 
 int main(int argc, char **argv) {

@@ -51,10 +51,16 @@ public:
   ~TaskQueue() = default;
 
   /**
-   * @brief 添加任务
+   * @brief 添加任务（拷贝版本）
    * @param task 任务对象
    */
   void push(const Task &task);
+
+  /**
+   * @brief 添加任务（移动版本，性能优化）
+   * @param task 任务对象右值引用
+   */
+  void push(Task &&task);
 
   /**
    * @brief 阻塞取出任务

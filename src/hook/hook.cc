@@ -97,7 +97,7 @@ getsockopt_func getsockopt_f = nullptr;
 
 // 定时器信息，用于超时处理
 struct timer_info {
-  int cancelled = 0;
+  std::atomic<int> cancelled{0};
 };
 
 // 默认连接超时时间（毫秒）

@@ -5,7 +5,6 @@
 #include "util/thread_context.h"
 #include "util/zcoroutine_logger.h"
 
-
 namespace zcoroutine {
 
 Scheduler::Scheduler(int thread_count, std::string name, bool use_shared_stack)
@@ -109,12 +108,10 @@ void Scheduler::schedule(Fiber::ptr fiber) {
   }
 
   ZCOROUTINE_LOG_DEBUG(
-    "Scheduler[{}] scheduled fiber name={}, id={}, queue_size={}", name_,
-    fiber->name(), fiber->id(), task_queue_->size());
+      "Scheduler[{}] scheduled fiber name={}, id={}, queue_size={}", name_,
+      fiber->name(), fiber->id(), task_queue_->size());
 
-  const Task task(std::move(fiber));
-  task_queue_->push(task);
-
+  task_queue_->push(Task(std::move(fiber)));
 }
 
 Scheduler *Scheduler::get_this() { return ThreadContext::get_scheduler(); }

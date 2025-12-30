@@ -7,9 +7,7 @@
 #include "util/thread_context.h"
 #include "util/zcoroutine_logger.h"
 
-
 namespace zcoroutine {
-
 
 SharedStackBuffer::SharedStackBuffer(size_t stack_size)
     : stack_size_(stack_size) {
@@ -39,7 +37,6 @@ SharedStackBuffer::~SharedStackBuffer() {
     stack_bp_ = nullptr;
   }
 }
-
 
 constexpr size_t SharedStack::kDefaultStackSize;
 constexpr int SharedStack::kDefaultStackCount;
@@ -82,7 +79,6 @@ SharedStackBuffer *SharedStack::allocate() {
 
   return stack_array_[idx].get();
 }
-
 
 constexpr size_t SwitchStack::kDefaultSwitchStackSize;
 
@@ -186,13 +182,12 @@ SwitchStack::~SwitchStack() {
   }
 }
 
-
-
 SharedContext::~SharedContext() {
   if (save_buffer_) {
-    StackAllocator::deallocate(save_buffer_, save_size_);
+    StackAllocator::deallocate(save_buffer_, save_buffer_capacity_);
     save_buffer_ = nullptr;
     save_size_ = 0;
+    save_buffer_capacity_ = 0;
   }
 }
 
@@ -218,18 +213,22 @@ void SharedContext::save_stack_buffer(void *stack_sp) {
 
   auto len = static_cast<size_t>(stack_top - sp);
 
-  // 释放旧地保存缓冲区
-  if (save_buffer_) {
-    StackAllocator::deallocate(save_buffer_, save_size_);
-    save_buffer_ = nullptr;
-  }
-
-  // 使用StackAllocator分配新的保存缓冲区
-  save_buffer_ = static_cast<char *>(StackAllocator::allocate(len));
-  if (!save_buffer_) {
-    ZCOROUTINE_LOG_ERROR(
-        "SharedContext::save_stack_buffer allocation failed: size={}", len);
-    return;
+  // 优化：复用缓冲区，仅当需要更大空间时才重新分配
+  if (len > save_buffer_capacity_) {
+    if (save_buffer_) {
+      StackAllocator::deallocate(save_buffer_, save_buffer_capacity_);
+    }
+    // 分配时预留一些空间，减少重复分配
+    size_t new_capacity = len + (len >> 2); // 额外25%空间
+    save_buffer_ = static_cast<char *>(StackAllocator::allocate(new_capacity));
+    if (!save_buffer_) {
+      ZCOROUTINE_LOG_ERROR(
+          "SharedContext::save_stack_buffer allocation failed: size={}",
+          new_capacity);
+      save_buffer_capacity_ = 0;
+      return;
+    }
+    save_buffer_capacity_ = new_capacity;
   }
 
   save_size_ = len;
@@ -269,11 +268,7 @@ void SharedContext::restore_stack_buffer() {
 }
 
 void SharedContext::reset() {
-  if (save_buffer_) {
-    StackAllocator::deallocate(save_buffer_, save_size_);
-    save_buffer_ = nullptr;
-    save_size_ = 0;
-  }
+  save_size_ = 0;
   saved_stack_sp_ = nullptr;
 }
 
