@@ -5,7 +5,6 @@
 
 #include "util/noncopyable.h"
 
-
 namespace zcoroutine {
 
 /**
@@ -18,7 +17,7 @@ namespace zcoroutine {
  * 4. 短自旋使用 cpu_relax，长自旋让出 CPU
 
  */
-class Spinlock : public NonCopyable {
+class alignas(64) Spinlock : public NonCopyable {
 public:
   Spinlock() noexcept = default;
 
@@ -59,21 +58,6 @@ private:
     std::this_thread::yield();
 #endif
   }
-};
-
-/**
- * @brief Spinlock 的 RAII 封装
- */
-class SpinlockGuard : public NonCopyable {
-public:
-  explicit SpinlockGuard(Spinlock &lock) noexcept : lock_(lock) {
-    lock_.lock();
-  }
-
-  ~SpinlockGuard() { lock_.unlock(); }
-
-private:
-  Spinlock &lock_;
 };
 
 } // namespace zcoroutine

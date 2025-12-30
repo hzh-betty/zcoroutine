@@ -2,15 +2,13 @@
 #define ZCOROUTINE_TASK_QUEUE_H_
 
 #include <atomic>
-#include <queue>
+#include <condition_variable>
 #include <functional>
 #include <memory>
 #include <queue>
 
 #include "runtime/fiber.h"
-#include "sync/semaphore.h"
 #include "sync/spinlock.h"
-
 
 namespace zcoroutine {
 
@@ -85,7 +83,7 @@ public:
 
 private:
   mutable Spinlock spinlock_;        // 自旋锁保护队列
-  Semaphore semaphore_;              // Linux 信号量
+  std::condition_variable_any cv_;   // 条件变量
   std::queue<Task> tasks_;           // 任务队列
   std::atomic<bool> stopped_{false}; // 停止标志
 };

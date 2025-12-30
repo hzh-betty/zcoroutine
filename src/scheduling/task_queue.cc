@@ -1,56 +1,45 @@
 #include "scheduling/task_queue.h"
+#include <mutex>
 
 namespace zcoroutine {
 
 void TaskQueue::push(const Task &task) {
   {
-    SpinlockGuard lock(spinlock_);
+    std::lock_guard<Spinlock> lock(spinlock_);
     tasks_.push(task);
   }
-  semaphore_.notify(); // 唤醒一个等待的线程
+  cv_.notify_one();
 }
 
 bool TaskQueue::pop(Task &task) {
-  while (true) {
-    // 等待信号量
-    semaphore_.wait();
+  std::unique_lock<Spinlock> lock(spinlock_);
+  cv_.wait(lock, [this] { return stopped_ || !tasks_.empty(); });
 
-    // 检查停止标志
-    if (stopped_) {
-      // 即使停止，也要处理完剩余任务
-      SpinlockGuard lock(spinlock_);
-      if (tasks_.empty()) {
-        return false;
-      }
-      task = std::move(tasks_.front());
-      tasks_.pop();
-      return true;
-    }
-
-    SpinlockGuard lock(spinlock_);
-    if (!tasks_.empty()) {
-      task = std::move(tasks_.front());
-      tasks_.pop();
-      return true;
-    }
-    // 如果队列为空，继续等待（spurious wakeup）
+  if (!tasks_.empty()) {
+    task = std::move(tasks_.front());
+    tasks_.pop();
+    return true;
   }
+
+  return false;
 }
 
 size_t TaskQueue::size() const {
-  SpinlockGuard lock(spinlock_);
+  std::lock_guard<Spinlock> lock(spinlock_);
   return tasks_.size();
 }
 
 bool TaskQueue::empty() const {
-  SpinlockGuard lock(spinlock_);
+  std::lock_guard<Spinlock> lock(spinlock_);
   return tasks_.empty();
 }
 
 void TaskQueue::stop() {
-  stopped_ = true;
-  // 唤醒所有等待的线程
-  semaphore_.notify_all(1024);
+  {
+    std::lock_guard<Spinlock> lock(spinlock_);
+    stopped_ = true;
+  }
+  cv_.notify_all();
 }
 
 } // namespace zcoroutine
