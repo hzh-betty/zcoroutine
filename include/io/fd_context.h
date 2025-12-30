@@ -51,12 +51,11 @@ public:
 
   /**
    * @brief 事件上下文结构
-   *
-   * 存储每个事件类型的协程和回调函数。
+   * 优化布局：把指针放在一起，利用空间局部性
    */
   struct EventContext {
-    std::shared_ptr<Fiber> fiber;               // 等待该事件的协程
-    std::function<void()> callback; // 事件回调函数
+    std::function<void()> callback; // 事件回调函数 - 16字节
+    std::shared_ptr<Fiber> fiber;   // 等待该事件的协程 - 16字节
   };
 
   explicit FdContext(int fd);
@@ -118,11 +117,16 @@ public:
   void reset_event_context(EventContext &ctx);
 
 private:
-  int fd_;                 // 文件描述符 - 最常访问
-  int events_ = kNone;     // 当前注册的事件 - 常访问
-  EventContext read_ctx_;  // 读事件上下文
-  EventContext write_ctx_; // 写事件上下文
-  std::mutex mutex_;       // 保护上下文的互斥锁 - 较少竞争时放后面
+  // 热数据：最常访问，放在开头
+  int fd_;                 // 文件描述符 - 4字节
+  int events_ = kNone;     // 当前注册的事件 - 4字节
+  
+  // 事件上下文：紧接着热数据
+  EventContext read_ctx_;  // 读事件上下文 - 32字节
+  EventContext write_ctx_; // 写事件上下文 - 32字节
+  
+  // 冷数据：竞争保护，放在最后降低false sharing
+  alignas(64) std::mutex mutex_;  // 保护上下文的互斥锁 - 独占缓存行
 };
 
 } // namespace zcoroutine

@@ -167,83 +167,110 @@ void Scheduler::run() {
 void Scheduler::schedule_loop() {
   ZCOROUTINE_LOG_DEBUG("Scheduler[{}] schedule_loop starting", name_);
 
+  // 批量处理优化：减少锁竞争
+  static constexpr size_t kBatchSize = 8;
+  Task tasks[kBatchSize];
+  
   while (true) {
     // 如果正在停止且任务队列为空，则退出循环
     if (stopping_ && task_queue_->empty())
       break;
 
-    Task task;
-
-    // 从队列中取出任务（阻塞等待）
-    if (!task_queue_->pop(task)) {
-      // 队列已停止
-      ZCOROUTINE_LOG_DEBUG(
-          "Scheduler[{}] task queue stopped, exiting schedule_loop", name_);
-      break;
-    }
-
-    if (!task.is_valid()) {
-      ZCOROUTINE_LOG_DEBUG("Scheduler[{}] received invalid task, skipping",
-                           name_);
-      continue;
-    }
-
-    // 增加活跃线程计数
-    int active =
-        active_thread_count_.fetch_add(1, std::memory_order_relaxed) + 1;
-
-    // 执行任务
-    if (task.fiber) {
-      // 执行协程
-      const Fiber::ptr fiber = task.fiber;
-
-      ZCOROUTINE_LOG_DEBUG(
-          "Scheduler[{}] executing fiber name={}, id={}, active_threads={}",
-          name_, fiber->name(), fiber->id(), active);
-
-      try {
-        fiber->resume();
-      } catch (const std::exception &e) {
-        ZCOROUTINE_LOG_ERROR(
-            "Scheduler[{}] fiber execution exception: name={}, id={}, error={}",
-            name_, fiber->name(), fiber->id(), e.what());
-      } catch (...) {
-        ZCOROUTINE_LOG_ERROR(
-            "Scheduler[{}] fiber execution unknown exception: name={}, id={}",
-            name_, fiber->name(), fiber->id());
-      }
-
-      // 如果协程终止，归还到池中
-      if (fiber->state() == Fiber::State::kTerminated) {
-        ZCOROUTINE_LOG_DEBUG("Scheduler[{}] fiber terminated: name={}, id={}",
-                             name_, fiber->name(), fiber->id());
-        // // 归还协程到池中
-        // FiberPool::GetInstance()->release(fiber);
-      }
-      // 如果协程挂起，说明在等待外部事件（IO、定时器等）
-      // 不自动重新调度，由事件触发时显式调度
-      else if (fiber->state() == Fiber::State::kSuspended) {
-        ZCOROUTINE_LOG_DEBUG("Scheduler[{}] fiber suspended, waiting for "
-                             "external event: name={}, id={}",
-                             name_, fiber->name(), fiber->id());
-      }
-    } else if (task.callback) {
-      // 执行回调函数
-      ZCOROUTINE_LOG_DEBUG(
-          "Scheduler[{}] executing callback, active_threads={}", name_, active);
-
-      try {
-        task.callback();
-      } catch (const std::exception &e) {
-        ZCOROUTINE_LOG_ERROR("Scheduler[{}] callback exception: error={}",
-                             name_, e.what());
-      } catch (...) {
-        ZCOROUTINE_LOG_ERROR("Scheduler[{}] callback unknown exception", name_);
+    // 尝试批量获取任务
+    size_t batch_count = 0;
+    for (size_t i = 0; i < kBatchSize; ++i) {
+      if (task_queue_->try_pop(tasks[i])) {
+        ++batch_count;
+      } else {
+        break;
       }
     }
+    
+    // 如果批量获取失败，阻塞等待一个任务
+    if (batch_count == 0) {
+      Task task;
+      if (!task_queue_->pop(task)) {
+        // 队列已停止
+        ZCOROUTINE_LOG_DEBUG(
+            "Scheduler[{}] task queue stopped, exiting schedule_loop", name_);
+        break;
+      }
+      
+      if (!task.is_valid()) {
+        ZCOROUTINE_LOG_DEBUG("Scheduler[{}] received invalid task, skipping",
+                             name_);
+        continue;
+      }
+      
+      tasks[0] = std::move(task);
+      batch_count = 1;
+    }
 
-    // 减少活跃线程计数
-    active_thread_count_.fetch_sub(1, std::memory_order_relaxed);
+    // 批量执行任务
+    for (size_t i = 0; i < batch_count; ++i) {
+      Task &task = tasks[i];
+      
+      if (!task.is_valid()) {
+        continue;
+      }
+
+      // 增加活跃线程计数
+      int active =
+          active_thread_count_.fetch_add(1, std::memory_order_relaxed) + 1;
+
+      // 执行任务
+      if (task.fiber) {
+        // 执行协程
+        const Fiber::ptr fiber = task.fiber;
+
+        ZCOROUTINE_LOG_DEBUG(
+            "Scheduler[{}] executing fiber name={}, id={}, active_threads={}",
+            name_, fiber->name(), fiber->id(), active);
+
+        try {
+          fiber->resume();
+        } catch (const std::exception &e) {
+          ZCOROUTINE_LOG_ERROR(
+              "Scheduler[{}] fiber execution exception: name={}, id={}, error={}",
+              name_, fiber->name(), fiber->id(), e.what());
+        } catch (...) {
+          ZCOROUTINE_LOG_ERROR(
+              "Scheduler[{}] fiber execution unknown exception: name={}, id={}",
+              name_, fiber->name(), fiber->id());
+        }
+
+        // 如果协程终止，归还到池中
+        if (fiber->state() == Fiber::State::kTerminated) {
+          ZCOROUTINE_LOG_DEBUG("Scheduler[{}] fiber terminated: name={}, id={}",
+                               name_, fiber->name(), fiber->id());
+        }
+        // 如果协程挂起，说明在等待外部事件（IO、定时器等）
+        else if (fiber->state() == Fiber::State::kSuspended) {
+          ZCOROUTINE_LOG_DEBUG("Scheduler[{}] fiber suspended, waiting for "
+                               "external event: name={}, id={}",
+                               name_, fiber->name(), fiber->id());
+        }
+      } else if (task.callback) {
+        // 执行回调函数
+        ZCOROUTINE_LOG_DEBUG(
+            "Scheduler[{}] executing callback, active_threads={}", name_, active);
+
+        try {
+          task.callback();
+        } catch (const std::exception &e) {
+          ZCOROUTINE_LOG_ERROR("Scheduler[{}] callback exception: error={}",
+                               name_, e.what());
+        } catch (...) {
+          ZCOROUTINE_LOG_ERROR("Scheduler[{}] callback unknown exception", name_);
+        }
+      }
+
+      // 减少活跃线程计数
+      active_thread_count_.fetch_sub(1, std::memory_order_relaxed);
+      
+      // 清理任务
+      task.reset();
+    }
   }
 
   ZCOROUTINE_LOG_DEBUG("Scheduler[{}] schedule_loop ended", name_);

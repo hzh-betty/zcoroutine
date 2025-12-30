@@ -42,10 +42,13 @@ struct Task {
 
 /**
  * @brief 任务队列类
- * 使用SpinLock + Linux信号量实现的线程安全任务队列
- * SpinLock保护队列操作，信号量实现阻塞等待
+ * 使用SpinLock + 条件变量实现的线程安全任务队列
+ * 优化要点：
+ * 1. 缓存行对齐避免false sharing
+ * 2. 批量操作减少锁竞争
+ * 3. 快速路径优化：先尝试无锁pop
  */
-class TaskQueue {
+class alignas(64) TaskQueue {
 public:
   TaskQueue() = default;
   ~TaskQueue() = default;
@@ -82,16 +85,24 @@ public:
   bool empty() const;
 
   /**
+   * @brief 尝试快速取出任务（无阻塞）
+   * @param task 输出参数，取出的任务
+   * @return true表示成功取出，false表示队列为空
+   */
+  bool try_pop(Task &task);
+
+  /**
    * @brief 停止队列
    * 唤醒所有等待的线程
    */
   void stop();
 
 private:
-  mutable Spinlock spinlock_;        // 自旋锁保护队列
-  std::condition_variable_any cv_;   // 条件变量
-  std::queue<Task> tasks_;           // 任务队列
-  std::atomic<bool> stopped_{false}; // 停止标志
+  alignas(64) mutable Spinlock spinlock_;        // 自旋锁保护队列，独占缓存行
+  alignas(64) std::condition_variable_any cv_;   // 条件变量，独占缓存行
+  std::queue<Task> tasks_;                       // 任务队列
+  std::atomic<bool> stopped_{false};             // 停止标志
+  alignas(64) std::atomic<size_t> size_{0};      // 原子size，减少锁操作
 };
 
 } // namespace zcoroutine

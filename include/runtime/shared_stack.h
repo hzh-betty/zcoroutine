@@ -268,12 +268,14 @@ public:
   void *saved_stack_sp() const { return saved_stack_sp_; }
 
 private:
-  bool is_shared_stack_ = false;                     // 是否使用共享栈
-  SharedStackBuffer *shared_stack_buffer_ = nullptr; // 共享栈缓冲区
-  void *saved_stack_sp_ = nullptr; // 保存时的栈指针（用于恢复时确定位置）
-  char *save_buffer_ = nullptr;     // 栈内容保存缓冲区
-  size_t save_size_ = 0;            // 保存的栈大小
+  // 缓存优化：热数据（频繁访问）放在一起，对齐到缓存行
+  // 第一缓存行：高频访问的状态和指针
+  alignas(64) char *save_buffer_ = nullptr; // 栈内容保存缓冲区 - 每次切换都访问
+  void *saved_stack_sp_ = nullptr; // 保存时的栈指针 - 每次切换都访问
+  size_t save_size_ = 0;            // 保存的栈大小 - 每次切换都访问
   size_t save_buffer_capacity_ = 0; // 缓冲区容量
+  SharedStackBuffer *shared_stack_buffer_ = nullptr; // 共享栈缓冲区
+  bool is_shared_stack_ = false;                     // 是否使用共享栈
 };
 
 } // namespace zcoroutine

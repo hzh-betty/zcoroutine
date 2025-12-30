@@ -4,36 +4,53 @@
 namespace zcoroutine {
 
 void TaskQueue::push(const Task &task) {
-  bool was_empty;
   {
     std::lock_guard<Spinlock> lock(spinlock_);
-    was_empty = tasks_.empty();
     tasks_.push(task);
   }
-  if (was_empty) {
-    cv_.notify_one();
-  }
+  size_.fetch_add(1, std::memory_order_relaxed);
+  cv_.notify_one();
 }
 
 void TaskQueue::push(Task &&task) {
-  bool was_empty;
   {
     std::lock_guard<Spinlock> lock(spinlock_);
-    was_empty = tasks_.empty();
     tasks_.push(std::move(task));
   }
-  if (was_empty) {
-    cv_.notify_one();
+  size_.fetch_add(1, std::memory_order_relaxed);
+  cv_.notify_one();
+}
+
+bool TaskQueue::try_pop(Task &task) {
+  // 快速路径：先检查size，避免无谓加锁
+  if (size_.load(std::memory_order_relaxed) == 0) {
+    return false;
   }
+  
+  std::lock_guard<Spinlock> lock(spinlock_);
+  if (!tasks_.empty()) {
+    task = std::move(tasks_.front());
+    tasks_.pop();
+    size_.fetch_sub(1, std::memory_order_relaxed);
+    return true;
+  }
+  return false;
 }
 
 bool TaskQueue::pop(Task &task) {
+  // 先尝试快速路径
+  if (try_pop(task)) {
+    return true;
+  }
+  
+  // 快速路径失败，进入阻塞等待
   std::unique_lock<Spinlock> lock(spinlock_);
   cv_.wait(lock, [this] { return stopped_ || !tasks_.empty(); });
 
   if (!tasks_.empty()) {
     task = std::move(tasks_.front());
     tasks_.pop();
+    size_.fetch_sub(1, std::memory_order_relaxed);
     return true;
   }
 
@@ -41,20 +58,15 @@ bool TaskQueue::pop(Task &task) {
 }
 
 size_t TaskQueue::size() const {
-  std::lock_guard<Spinlock> lock(spinlock_);
-  return tasks_.size();
+  return size_.load(std::memory_order_relaxed);
 }
 
 bool TaskQueue::empty() const {
-  std::lock_guard<Spinlock> lock(spinlock_);
-  return tasks_.empty();
+  return size_.load(std::memory_order_relaxed) == 0;
 }
 
 void TaskQueue::stop() {
-  {
-    std::lock_guard<Spinlock> lock(spinlock_);
-    stopped_ = true;
-  }
+  stopped_.store(true, std::memory_order_relaxed);
   cv_.notify_all();
 }
 
