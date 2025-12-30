@@ -81,12 +81,16 @@ if(TEST_INTEGRATION_SRCS)
     endforeach()
 endif()
 
-# Benchmark 可执行文件
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/bench.cc)
-    add_executable(http_server_benchmark ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/bench.cc)
-    target_link_libraries(http_server_benchmark PRIVATE
+# 新的性能测试基准程序
+file(GLOB BENCHMARK_SRCS ${CMAKE_CURRENT_SOURCE_DIR}/benchmark/*_bench.cc)
+foreach(bench_source ${BENCHMARK_SRCS})
+    get_filename_component(bench_name ${bench_source} NAME_WE)
+    add_executable(${bench_name} ${bench_source})
+    target_link_libraries(${bench_name} PRIVATE
             zcoroutine_shared
             pthread
     )
-    message(STATUS "Configured benchmark: http_server")
-endif()
+    # 使用 -O2 优化级别和调试符号（用于perf）
+    target_compile_options(${bench_name} PRIVATE -O2 -g)
+    message(STATUS "Configured benchmark: ${bench_name}")
+endforeach()
