@@ -104,11 +104,15 @@ void accept_connection() {
 
   ZCOROUTINE_LOG_DEBUG("Accepted connection, client_fd={}", client_fd);
 
+  // 将客户端处理任务调度到协程中执行
   if (g_io_scheduler) {
-    g_io_scheduler->add_event(client_fd, FdContext::kRead, [client_fd]() {
-      handle_client_fiber(client_fd);
-    });
+    Fiber::ptr client_fiber = std::make_shared<Fiber>(
+        [client_fd]() {
+          handle_client_fiber(client_fd);
+        });
+    g_io_scheduler->schedule(client_fiber);
   }
+
 
   // 继续监听下一个连接
   register_accept_event();
@@ -176,7 +180,7 @@ int main(int argc, char *argv[]) {
             << std::endl;
 
   // 创建IoScheduler（使用指定数量的工作线程）
-  auto io_scheduler = std::make_shared<IoScheduler>(thread_num, "HttpServer",true);
+  auto io_scheduler = std::make_shared<IoScheduler>(thread_num, "HttpServer",false);
   g_io_scheduler = io_scheduler;
 
   g_io_scheduler->start();
