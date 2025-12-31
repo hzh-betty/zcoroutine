@@ -211,9 +211,6 @@ void SharedContext::save_stack_buffer(void *stack_sp) {
     return;
   }
 
-  // 直接保存整个有效栈（从sp到stack_top）
-  // 注意：由于StackAllocator已去掉memset清零，栈尾部可能有垃圾数据
-  // 不能通过扫描零字节来判断未使用区域
   size_t len = static_cast<size_t>(stack_top - sp);
 
   // 优化：复用缓冲区，仅当需要更大空间时才重新分配
