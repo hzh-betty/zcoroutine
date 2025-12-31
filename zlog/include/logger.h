@@ -108,11 +108,11 @@ protected:
   virtual void log(const char *data, size_t len) = 0;
 
 protected:
-  std::mutex mutex_;                ///< 互斥锁
-  const char *loggerName_;          ///< 日志器名称
-  LogLevel::value limitLevel_;      ///< 日志等级限制
-  Formatter::ptr formatter_;        ///< 日志格式化器
-  std::vector<LogSink::ptr> sinks_; ///< 日志落地器列表
+  std::mutex mutex_;                // 互斥锁
+  const char *loggerName_;          // 日志器名称
+  LogLevel::value limitLevel_;      // 日志等级限制
+  Formatter::ptr formatter_;        // 日志格式化器
+  std::vector<LogSink::ptr> sinks_; // 日志落地器列表
 };
 
 /**
@@ -176,15 +176,15 @@ protected:
   void reLog(const Buffer &buffer) const;
 
 protected:
-  AsyncLooper::ptr looper_; ///< 异步循环器
+  AsyncLooper::ptr looper_; // 异步循环器
 };
 
 /**
  * @brief 日志器类型枚举
  */
 enum class LoggerType {
-  LOGGER_SYNC, ///< 同步日志器
-  LOGGER_ASYNC ///< 异步日志器
+  LOGGER_SYNC, // 同步日志器
+  LOGGER_ASYNC // 异步日志器
 };
 
 /**
@@ -256,13 +256,13 @@ public:
   virtual Logger::ptr build() = 0;
 
 protected:
-  LoggerType loggerType_;               ///< 日志器类型
-  const char *loggerName_ = nullptr;    ///< 日志器名称
-  LogLevel::value limitLevel_;          ///< 日志等级限制
-  Formatter::ptr formatter_;            ///< 日志格式化器
-  std::vector<LogSink::ptr> sinks_;     ///< 日志落地器列表
-  AsyncType looperType_;                ///< 异步类型
-  std::chrono::milliseconds milliseco_; ///< 最大等待时间
+  LoggerType loggerType_;               // 日志器类型
+  const char *loggerName_ = nullptr;    // 日志器名称
+  LogLevel::value limitLevel_;          // 日志等级限制
+  Formatter::ptr formatter_;            // 日志格式化器
+  std::vector<LogSink::ptr> sinks_;     // 日志落地器列表
+  AsyncType looperType_;                // 异步类型
+  std::chrono::milliseconds milliseco_; // 最大等待时间
 };
 
 /**
@@ -335,9 +335,9 @@ private:
   LoggerManager();
 
 private:
-  std::mutex mutex_;                                     ///< 互斥锁
-  Logger::ptr rootLogger_;                               ///< 默认根日志器
-  std::unordered_map<std::string, Logger::ptr> loggers_; ///< 日志器映射表
+  std::mutex mutex_;                                     // 互斥锁
+  Logger::ptr rootLogger_;                               // 默认根日志器
+  std::unordered_map<std::string, Logger::ptr> loggers_; // 日志器映射表
 };
 
 /**

@@ -7,10 +7,6 @@
 #include <string>
 #include <utility>
 
-#ifdef _WIN32
-#include <Windows.h>
-#endif
-
 /**
  * @brief 日志落地模块
  * 实现日志输出到不同目标（控制台、文件、滚动文件）
@@ -27,11 +23,9 @@ public:
   LogSink() = default;
   virtual ~LogSink() = default;
 
-  /**
-   * @brief 输出日志数据
-   * @param data 日志数据指针
-   * @param len 数据长度
-   */
+  // 输出日志数据
+  // @param data 日志数据指针
+  // @param len 数据长度
   virtual void log(const char *data, size_t len) = 0;
 };
 
@@ -50,19 +44,17 @@ public:
  */
 class FileSink final : public LogSink {
 public:
-  /**
-   * @brief 构造函数
-   * @param pathname 文件路径
-   * @param autoFlush 是否每次写入后自动flush，默认false以提高性能
-   */
+  // 构造函数
+  // @param pathname 文件路径
+  // @param autoFlush 是否每次写入后自动flush，默认false以提高性能
   explicit FileSink(std::string pathname, bool autoFlush = false);
 
   void log(const char *data, size_t len) override;
 
 protected:
-  std::string pathname_; ///< 文件路径
-  std::ofstream ofs_;    ///< 输出文件流
-  bool autoFlush_;       ///< 是否自动flush
+  std::string pathname_; // 文件路径
+  std::ofstream ofs_;    // 输出文件流
+  bool autoFlush_;       // 是否自动flush
 };
 
 /**
@@ -71,35 +63,29 @@ protected:
  */
 class RollBySizeSink final : public LogSink {
 public:
-  /**
-   * @brief 构造函数
-   * @param basename 文件基础名称
-   * @param maxSize 最大文件大小（字节）
-   * @param autoFlush 是否每次写入后自动flush，默认false
-   */
+  // 构造函数
+  // @param basename 文件基础名称
+  // @param maxSize 最大文件大小（字节）
+  // @param autoFlush 是否每次写入后自动flush，默认false
   RollBySizeSink(std::string basename, size_t maxSize, bool autoFlush = false);
 
   void log(const char *data, size_t len) override;
 
 protected:
-  /**
-   * @brief 创建新文件名
-   * @return 新文件的完整路径
-   */
+  // 创建新文件名
+  // @return 新文件的完整路径
   std::string createNewFile();
 
-  /**
-   * @brief 滚动到新文件
-   * 关闭当前文件，创建新文件
-   */
+  // 滚动到新文件
+  // 关闭当前文件，创建新文件
   void rollOver();
 
-  std::string basename_; ///< 文件基础名称
-  std::ofstream ofs_;    ///< 输出文件流
-  size_t maxSize_;       ///< 最大文件大小
-  size_t curSize_;       ///< 当前文件大小
-  size_t nameCount_;     ///< 文件名计数器
-  bool autoFlush_;       ///< 是否自动flush
+  std::string basename_; // 文件基础名称
+  std::ofstream ofs_;    // 输出文件流
+  size_t maxSize_;       // 最大文件大小
+  size_t curSize_;       // 当前文件大小
+  size_t nameCount_;     // 文件名计数器
+  bool autoFlush_;       // 是否自动flush
 };
 
 /**
@@ -108,13 +94,11 @@ protected:
  */
 class SinkFactory {
 public:
-  /**
-   * @brief 创建日志落地器
-   * @tparam SinkType 落地器类型
-   * @tparam Args 构造参数类型
-   * @param args 构造参数
-   * @return 日志落地器智能指针
-   */
+  // 创建日志落地器
+  // @tparam SinkType 落地器类型
+  // @tparam Args 构造参数类型
+  // @param args 构造参数
+  // @return 日志落地器智能指针
   template <typename SinkType, typename... Args>
   static LogSink::ptr create(Args &&...args) {
     // 使用完美转发构造对象

@@ -32,11 +32,7 @@ void TimeFormatItem::format(fmt::memory_buffer &buffer, const LogMessage &msg) {
 
   if (last_second != msg.curtime_) {
     struct tm lt {};
-#ifdef _WIN32
-    localtime_s(&lt, &msg.curtime_);
-#else
     localtime_r(&msg.curtime_, &lt);
-#endif
     cached_len = strftime(cached_time_str, sizeof(cached_time_str),
                           timeFormat_.c_str(), &lt);
     last_second = msg.curtime_;
@@ -195,7 +191,6 @@ FormatItem::prt Formatter::createItem(const std::string &key,
     if (!val.empty()) {
       return std::make_shared<TimeFormatItem>(val);
     } else {
-      // 单独%d采用默认格式输出
       return std::make_shared<TimeFormatItem>();
     }
   } else if (key == "t")

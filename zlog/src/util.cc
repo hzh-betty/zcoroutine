@@ -48,11 +48,7 @@ void File::createDirectory(const std::string &pathname) {
 }
 
 void File::makeDir(const std::string &pathname) {
-#ifdef _WIN32
-  _mkdir(pathname.c_str());
-#else
   mkdir(pathname.c_str(), 0777);
-#endif
 }
 
 } // namespace zlog

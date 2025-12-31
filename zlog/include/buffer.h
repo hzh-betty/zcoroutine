@@ -5,13 +5,13 @@
 namespace zlog {
 // 缓冲区大小常量定义
 static constexpr size_t DEFAULT_BUFFER_SIZE =
-    1024 * 1024 * 2; ///< 默认缓冲区大小：2MB
+    1024 * 1024 * 2; // 默认缓冲区大小：2MB
 static constexpr size_t THRESHOLD_BUFFER_SIZE =
-    1024 * 1024 * 8; ///< 阈值缓冲区大小：8MB
+    1024 * 1024 * 8; // 阈值缓冲区大小：8MB
 static constexpr size_t INCREMENT_BUFFER_SIZE =
-    1024 * 1024 * 1; ///< 增量缓冲区大小：1MB
+    1024 * 1024 * 1; // 增量缓冲区大小：1MB
 static constexpr size_t MAX_BUFFER_SIZE =
-    1024 * 1024 * 512; ///< 最大缓冲区大小：512MB
+    1024 * 1024 * 512; // 最大缓冲区大小：512MB
 
 /**
  * @brief 双缓冲区类
@@ -102,10 +102,10 @@ private:
 private:
   // 调整成员变量顺序以优化缓存局部性
   // 将热路径访问的变量放在一起
-  char *data_;       ///< 缓冲区指针
-  size_t writerIdx_; ///< 当前可写数据的下标 (热路径)
-  size_t capacity_;  ///< 缓冲区总容量
-  size_t readerIdx_; ///< 当前可读数据的下标
+  char *data_;       // 缓冲区指针
+  size_t writerIdx_; // 当前可写数据的下标 (热路径)
+  size_t capacity_;  // 缓冲区总容量
+  size_t readerIdx_; // 当前可读数据的下标
 };
 } // namespace zlog
 

@@ -7,7 +7,6 @@
 #include <condition_variable>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <thread>
 
 namespace zlog {
@@ -15,12 +14,12 @@ namespace zlog {
  * @brief 异步日志器类型枚举
  */
 enum class AsyncType {
-  ASYNC_SAFE,  ///< 固定长度的缓冲区--阻塞模式
-  ASYNC_UNSAFE ///< 可扩容缓冲区--非阻塞模式
+  ASYNC_SAFE,  // 固定长度的缓冲区--阻塞模式
+  ASYNC_UNSAFE // 可扩容缓冲区--非阻塞模式
 };
 
 static constexpr size_t FLUSH_BUFFER_SIZE =
-    DEFAULT_BUFFER_SIZE * 0.8; ///< 刷新缓冲区大小阈值 (提高到 80%)
+    DEFAULT_BUFFER_SIZE * 0.8; // 刷新缓冲区大小阈值 (提高到 80%)
 
 /**
  * @brief 异步日志循环器
@@ -28,8 +27,8 @@ static constexpr size_t FLUSH_BUFFER_SIZE =
  */
 class AsyncLooper {
 public:
-  using Functor = std::function<void(Buffer &)>; ///< 回调函数类型
-  using ptr = std::shared_ptr<AsyncLooper>;      ///< 智能指针类型
+  using Functor = std::function<void(Buffer &)>; // 回调函数类型
+  using ptr = std::shared_ptr<AsyncLooper>;      // 智能指针类型
 
   /**
    * @brief 构造函数
@@ -66,16 +65,16 @@ private:
   void threadEntry();
 
 private:
-  AsyncType looperType_;                ///< 异步类型
-  std::atomic<bool> stop_;              ///< 停止标志
-  Buffer proBuf_;                       ///< 生产缓冲区
-  Buffer conBuf_;                       ///< 消费缓冲区
-  Spinlock mutex_;                      ///< 互斥锁（自旋锁）
-  std::condition_variable_any condPro_; ///< 生产者条件变量
-  std::condition_variable_any condCon_; ///< 消费者条件变量
-  std::thread thread_;                  ///< 工作线程
-  Functor callBack_;                    ///< 回调函数
-  std::chrono::milliseconds milliseco_; ///< 最大等待时间
+  AsyncType looperType_;                // 异步类型
+  std::atomic<bool> stop_;              // 停止标志
+  Buffer proBuf_;                       // 生产缓冲区
+  Buffer conBuf_;                       // 消费缓冲区
+  Spinlock mutex_;                      // 互斥锁（自旋锁）
+  std::condition_variable_any condPro_; // 生产者条件变量
+  std::condition_variable_any condCon_; // 消费者条件变量
+  std::thread thread_;                  // 工作线程
+  Functor callBack_;                    // 回调函数
+  std::chrono::milliseconds milliseco_; // 最大等待时间
 };
 } // namespace zlog
 

@@ -3,12 +3,7 @@
 #include <atomic>
 #include <string>
 #include <thread>
-
-#ifdef _WIN32
-#include <direct.h>
-#else
 #include <sys/stat.h>
-#endif
 
 namespace zlog {
 

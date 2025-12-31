@@ -60,7 +60,7 @@ public:
   void format(fmt::memory_buffer &buffer, const LogMessage &msg) override;
 
 protected:
-  std::string timeFormat_; ///< 时间格式字符串
+  std::string timeFormat_; // 时间格式字符串
 };
 
 /**
@@ -132,7 +132,7 @@ public:
   void format(fmt::memory_buffer &buffer, const LogMessage &msg) override;
 
 protected:
-  std::string str_; ///< 要输出的字符串
+  std::string str_; // 要输出的字符串
 };
 
 /**
@@ -185,8 +185,8 @@ protected:
                                     const std::string &val);
 
 protected:
-  std::string pattern_;                ///< 格式化字符串
-  std::vector<FormatItem::prt> items_; ///< 格式化项列表
+  std::string pattern_;                // 格式化字符串
+  std::vector<FormatItem::prt> items_; // 格式化项列表
 };
 } // namespace zlog
 

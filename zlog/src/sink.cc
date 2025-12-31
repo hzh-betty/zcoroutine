@@ -48,11 +48,7 @@ void RollBySizeSink::log(const char *data, size_t len) {
 std::string RollBySizeSink::createNewFile() {
   time_t t = Date::getCurrentTime();
   struct tm lt {};
-#ifdef _WIN32
-  localtime_s(&lt, &t);
-#else
   localtime_r(&t, &lt);
-#endif
   // 先将时间格式化为字符串
   char timeStr[64];
   strftime(timeStr, sizeof(timeStr), "%Y%m%d%H%M%S", &lt);
