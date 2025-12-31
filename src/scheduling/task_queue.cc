@@ -10,7 +10,10 @@ void TaskQueue::push(const Task &task) {
     tasks_.push(task);
   }
   size_.fetch_add(1, std::memory_order_relaxed);
-  cv_.notify_one();
+  // 仅在有等待者时才唤醒，减少无效的notify调用
+  if (waiters_.load(std::memory_order_acquire) > 0) {
+    cv_.notify_one();
+  }
 }
 
 void TaskQueue::push(Task &&task) {
@@ -19,7 +22,10 @@ void TaskQueue::push(Task &&task) {
     tasks_.push(std::move(task));
   }
   size_.fetch_add(1, std::memory_order_relaxed);
-  cv_.notify_one();
+  // 仅在有等待者时才唤醒，减少无效的notify调用
+  if (waiters_.load(std::memory_order_acquire) > 0) {
+    cv_.notify_one();
+  }
 }
 
 bool TaskQueue::try_pop(Task &task) {
@@ -27,7 +33,7 @@ bool TaskQueue::try_pop(Task &task) {
   if (size_.load(std::memory_order_relaxed) == 0) {
     return false;
   }
-  
+
   std::lock_guard<Spinlock> lock(spinlock_);
   if (!tasks_.empty()) {
     task = std::move(tasks_.front());
@@ -39,40 +45,54 @@ bool TaskQueue::try_pop(Task &task) {
 }
 
 bool TaskQueue::pop(Task &task, int timeout_ms) {
-  // 先尝试快速路径
-  if (try_pop(task)) {
-    return true;
+  // 快速路径：多次自旋尝试，避免立即进入条件变量等待
+  static constexpr int kSpinTries = 16;
+  for (int i = 0; i < kSpinTries; ++i) {
+    if (try_pop(task)) {
+      return true;
+    }
+    // 短暂自旋
+#if defined(__x86_64__) || defined(__i386__)
+    __builtin_ia32_pause();
+#elif defined(__aarch64__) || defined(__arm__)
+    __asm__ __volatile__("yield");
+#else
+    std::this_thread::yield();
+#endif
   }
-  
+
   // 快速路径失败，进入阻塞等待
   std::unique_lock<Spinlock> lock(spinlock_);
-  
+
+  // 增加等待者计数
+  waiters_.fetch_add(1, std::memory_order_release);
+
+  bool result = false;
   if (timeout_ms > 0) {
     // 带超时等待
-    auto deadline = std::chrono::steady_clock::now() + 
+    auto deadline = std::chrono::steady_clock::now() +
                     std::chrono::milliseconds(timeout_ms);
-    if (!cv_.wait_until(lock, deadline, [this] { return stopped_ || !tasks_.empty(); })) {
-      // 超时
-      return false;
-    }
+    cv_.wait_until(lock, deadline,
+                   [this] { return stopped_ || !tasks_.empty(); });
   } else {
     // 永久等待
     cv_.wait(lock, [this] { return stopped_ || !tasks_.empty(); });
   }
 
+  // 减少等待者计数
+  waiters_.fetch_sub(1, std::memory_order_release);
+
   if (!tasks_.empty()) {
     task = std::move(tasks_.front());
     tasks_.pop();
     size_.fetch_sub(1, std::memory_order_relaxed);
-    return true;
+    result = true;
   }
 
-  return false;
+  return result;
 }
 
-size_t TaskQueue::size() const {
-  return size_.load(std::memory_order_relaxed);
-}
+size_t TaskQueue::size() const { return size_.load(std::memory_order_relaxed); }
 
 bool TaskQueue::empty() const {
   return size_.load(std::memory_order_relaxed) == 0;

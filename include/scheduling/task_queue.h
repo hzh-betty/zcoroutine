@@ -47,6 +47,7 @@ struct Task {
  * 1. 缓存行对齐避免false sharing
  * 2. 批量操作减少锁竞争
  * 3. 快速路径优化：先尝试无锁pop
+ * 4. 减少不必要的notify调用：仅当有等待者时才唤醒
  */
 class TaskQueue {
 public:
@@ -99,11 +100,14 @@ public:
   void stop();
 
 private:
-  mutable Spinlock spinlock_;        // 自旋锁保护队列，独占缓存行
-  std::condition_variable_any cv_;   // 条件变量
-  std::queue<Task> tasks_;                       // 任务队列
-  std::atomic<bool> stopped_{false};             // 停止标志
-  std::atomic<size_t> size_{0};      // 原子size，减少锁操作
+  // 缓存行对齐，避免false sharing
+  alignas(64) mutable Spinlock spinlock_; // 自旋锁保护队列
+  std::condition_variable_any cv_;        // 条件变量
+  std::queue<Task> tasks_;                // 任务队列
+
+  alignas(64) std::atomic<bool> stopped_{false}; // 停止标志
+  std::atomic<size_t> size_{0};                  // 原子size，减少锁操作
+  std::atomic<int> waiters_{0}; // 等待者计数，减少不必要的notify
 };
 
 } // namespace zcoroutine

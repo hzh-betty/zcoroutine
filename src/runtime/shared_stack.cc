@@ -203,11 +203,17 @@ void SharedContext::save_stack_buffer(void *stack_sp) {
 
   // 计算需要保存的栈大小
   // stack_top 是栈顶（高地址），stack_sp 是当前栈指针（低地址）
+  char *stack_base = shared_stack_buffer_->buffer();
   char *stack_top = shared_stack_buffer_->stack_top();
   char *sp = static_cast<char *>(stack_sp);
 
-  if (sp >= stack_top) {
-    ZCOROUTINE_LOG_WARN("SharedContext::save_stack_buffer invalid stack_sp");
+  // 边界检查：确保栈指针在有效范围内
+  if (sp < stack_base || sp >= stack_top) {
+    ZCOROUTINE_LOG_ERROR(
+        "SharedContext::save_stack_buffer invalid stack_sp: sp={}, base={}, "
+        "top={}",
+        static_cast<void *>(sp), static_cast<void *>(stack_base),
+        static_cast<void *>(stack_top));
     return;
   }
 
@@ -219,7 +225,7 @@ void SharedContext::save_stack_buffer(void *stack_sp) {
       StackAllocator::deallocate(save_buffer_, save_buffer_capacity_);
     }
     // 分配时预留一些空间，减少重复分配
-    size_t new_capacity = len + (len >> 2); // 额外25%空间
+    size_t new_capacity = len + (len >> 2);      // 额外25%空间
     new_capacity = (new_capacity + 15) & ~15ULL; // 16字节对齐
     save_buffer_ = static_cast<char *>(StackAllocator::allocate(new_capacity));
     if (!save_buffer_) {

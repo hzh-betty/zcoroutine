@@ -123,16 +123,19 @@ void Scheduler::set_this(Scheduler *scheduler) {
 void Scheduler::run() {
   ZCOROUTINE_LOG_DEBUG("Scheduler[{}] worker thread entering run loop", name_);
 
+  // 创建调度器协程，它将运行调度循环
+  // 注意：scheduler_fiber 必须使用独立栈，因为它负责协程切换
+  // 如果使用共享栈，切换时栈内容会被覆盖导致段错误
+  auto scheduler_fiber = std::make_shared<Fiber>(
+      [this]() { this->schedule_loop(); }, StackAllocator::kDefaultStackSize,
+      "scheduler", false);
+
   // 如果使用共享栈模式，设置线程本地的栈模式和共享栈
+  // 必须在创建 scheduler_fiber 之后设置，避免 scheduler_fiber 使用共享栈
   if (use_shared_stack_ && shared_stack_) {
     ThreadContext::set_stack_mode(StackMode::kShared);
     ThreadContext::set_shared_stack(shared_stack_);
   }
-
-  // 创建调度器协程，它将运行调度循环
-  auto scheduler_fiber =
-      std::make_shared<Fiber>([this]() { this->schedule_loop(); },
-                              StackAllocator::kDefaultStackSize, "scheduler");
   ThreadContext::set_scheduler_fiber(scheduler_fiber);
 
   ZCOROUTINE_LOG_DEBUG("Scheduler[{}] main_fiber and scheduler_fiber created",
@@ -169,9 +172,9 @@ void Scheduler::schedule_loop() {
 
   // 批量处理优化：减少锁竞争
   static constexpr size_t kBatchSize = 8;
-  static constexpr int kWaitTimeoutMs = 100;  // 超时等待100ms
+  static constexpr int kWaitTimeoutMs = 100; // 超时等待100ms
   Task tasks[kBatchSize];
-  
+
   while (true) {
     // 如果正在停止且任务队列为空，则退出循环
     if (stopping_ && task_queue_->empty())
@@ -186,27 +189,27 @@ void Scheduler::schedule_loop() {
         break;
       }
     }
-    
+
     // 如果批量获取失败，带超时等待一个任务
     if (batch_count == 0) {
       Task task;
       // 使用超时等待，避免永久阻塞导致的频繁唤醒
       if (!task_queue_->pop(task, kWaitTimeoutMs)) {
-        
+
         if (stopping_ && task_queue_->empty()) {
           ZCOROUTINE_LOG_DEBUG(
               "Scheduler[{}] task queue stopped, exiting schedule_loop", name_);
           break;
         }
-        continue;  
+        continue;
       }
-      
+
       if (!task.is_valid()) {
         ZCOROUTINE_LOG_DEBUG("Scheduler[{}] received invalid task, skipping",
                              name_);
         continue;
       }
-      
+
       tasks[0] = std::move(task);
       batch_count = 1;
     }
@@ -214,7 +217,7 @@ void Scheduler::schedule_loop() {
     // 批量执行任务
     for (size_t i = 0; i < batch_count; ++i) {
       Task &task = tasks[i];
-      
+
       if (!task.is_valid()) {
         continue;
       }
@@ -235,9 +238,9 @@ void Scheduler::schedule_loop() {
         try {
           fiber->resume();
         } catch (const std::exception &e) {
-          ZCOROUTINE_LOG_ERROR(
-              "Scheduler[{}] fiber execution exception: name={}, id={}, error={}",
-              name_, fiber->name(), fiber->id(), e.what());
+          ZCOROUTINE_LOG_ERROR("Scheduler[{}] fiber execution exception: "
+                               "name={}, id={}, error={}",
+                               name_, fiber->name(), fiber->id(), e.what());
         } catch (...) {
           ZCOROUTINE_LOG_ERROR(
               "Scheduler[{}] fiber execution unknown exception: name={}, id={}",
@@ -258,7 +261,8 @@ void Scheduler::schedule_loop() {
       } else if (task.callback) {
         // 执行回调函数
         ZCOROUTINE_LOG_DEBUG(
-            "Scheduler[{}] executing callback, active_threads={}", name_, active);
+            "Scheduler[{}] executing callback, active_threads={}", name_,
+            active);
 
         try {
           task.callback();
@@ -266,13 +270,14 @@ void Scheduler::schedule_loop() {
           ZCOROUTINE_LOG_ERROR("Scheduler[{}] callback exception: error={}",
                                name_, e.what());
         } catch (...) {
-          ZCOROUTINE_LOG_ERROR("Scheduler[{}] callback unknown exception", name_);
+          ZCOROUTINE_LOG_ERROR("Scheduler[{}] callback unknown exception",
+                               name_);
         }
       }
 
       // 减少活跃线程计数
       active_thread_count_.fetch_sub(1, std::memory_order_relaxed);
-      
+
       // 清理任务
       task.reset();
     }
