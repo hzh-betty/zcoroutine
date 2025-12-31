@@ -1,13 +1,14 @@
 #ifndef ZLOG_LOOPER_H_
 #define ZLOG_LOOPER_H_
-#include "buffer.h"
-#include "util.h"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <functional>
 #include <memory>
 #include <thread>
+
+#include "buffer.h"
+#include "util.h"
 
 namespace zlog {
 /**

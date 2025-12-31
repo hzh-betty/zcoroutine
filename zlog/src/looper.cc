@@ -1,4 +1,5 @@
 #include "looper.h"
+
 #include <iostream>
 
 namespace zlog {
@@ -10,7 +11,6 @@ AsyncLooper::AsyncLooper(Functor func, const AsyncType looperType,
       callBack_(std::move(func)), milliseco_(milliseco) {}
 
 void AsyncLooper::push(const char *data, const size_t len) {
-  // 使用更细粒度的锁控制，减少锁持有时间
   {
     std::unique_lock<Spinlock> lock(mutex_);
     if (looperType_ == AsyncType::ASYNC_SAFE) {
@@ -18,7 +18,7 @@ void AsyncLooper::push(const char *data, const size_t len) {
     }
     proBuf_.push(data, len);
   }
-  // 在锁外检查是否需要通知，减少锁持有时间
+
   // 使用原子操作避免重新加锁
   if (proBuf_.readAbleSize() >= FLUSH_BUFFER_SIZE) {
     condCon_.notify_one();
@@ -47,7 +47,6 @@ void AsyncLooper::threadEntry() {
       }
 
       // 等待，超时返回
-      // 注意：wait_for 需要在持有 mutex_ 时调用
       condCon_.wait_for(lock, milliseco_, [this]() {
         return (proBuf_.readAbleSize() >= FLUSH_BUFFER_SIZE) || stop_;
       });

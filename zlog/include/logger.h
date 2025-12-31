@@ -4,17 +4,17 @@
  * @brief 日志器模块
  * 实现同步和异步日志器，以及日志器管理功能
  */
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
+
+#include <mutex>
+#include <unordered_map>
+#include <utility>
+
+#include <fmt/format.h>
+
 #include "format.h"
 #include "level.h"
 #include "looper.h"
 #include "sink.h"
-#include <fmt/format.h>
-#include <mutex>
-#include <unordered_map>
-#include <utility>
 
 namespace zlog {
 /**
@@ -191,7 +191,7 @@ enum class LoggerType {
  * @brief 日志器建造者基类
  * 使用建造者模式降低用户使用成本
  */
-class LoggerBuilder {
+class LoggerBuilder:public NonCopyable  {
 public:
   virtual ~LoggerBuilder() = default;
 
@@ -269,7 +269,7 @@ protected:
  * @brief 局部日志器建造者
  * 创建局部作用域的日志器
  */
-class LocalLoggerBuilder final : public LoggerBuilder {
+class LocalLoggerBuilder final : public LoggerBuilder{
 public:
   /**
    * @brief 构建局部日志器
@@ -277,13 +277,6 @@ public:
    */
   LocalLoggerBuilder() = default;
   Logger::ptr build() override;
-
-private:
-  /**
-   * @brief 禁用拷贝构造和赋值操作
-   */
-  LocalLoggerBuilder(const LocalLoggerBuilder &) = delete;
-  LocalLoggerBuilder &operator=(const LocalLoggerBuilder &) = delete;
 };
 
 /**
@@ -352,14 +345,6 @@ public:
    */
   GlobalLoggerBuilder() = default;
   Logger::ptr build() override;
-
-private:
-  /**
-   * @brief 禁用拷贝构造和赋值操作
-   */
-  GlobalLoggerBuilder(const GlobalLoggerBuilder &) = delete;
-
-  GlobalLoggerBuilder &operator=(const GlobalLoggerBuilder &) = delete;
 };
 
 } // namespace zlog

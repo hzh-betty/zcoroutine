@@ -1,12 +1,14 @@
 #include "buffer.h"
 
+#include <sys/mman.h>
+
 #include <cassert>
 #include <cstdlib>
 #include <cstring>
+
 #include <stdexcept>
-#ifdef __linux__
-#include <sys/mman.h>
-#endif
+
+
 
 namespace zlog {
 

@@ -1,7 +1,9 @@
 #ifndef ZLOG_MESSAGE_H_
 #define ZLOG_MESSAGE_H_
-#include "level.h"
 #include <thread>
+
+#include "level.h"
+
 
 /**
  * @brief 日志消息模块

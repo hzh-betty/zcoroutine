@@ -1,11 +1,13 @@
 #ifndef ZLOG_SINK_H_
 #define ZLOG_SINK_H_
-#include <fmt/core.h>
-#include <fmt/os.h>
-#include <fmt/ostream.h>
+
 #include <fstream>
 #include <string>
 #include <utility>
+
+#include <fmt/core.h>
+#include <fmt/os.h>
+#include <fmt/ostream.h>
 
 /**
  * @brief 日志落地模块
@@ -23,9 +25,11 @@ public:
   LogSink() = default;
   virtual ~LogSink() = default;
 
-  // 输出日志数据
-  // @param data 日志数据指针
-  // @param len 数据长度
+  /**
+   * @brief 输出日志数据
+   * @param data 日志数据指针
+   * @param len 数据长度
+   */
   virtual void log(const char *data, size_t len) = 0;
 };
 
@@ -44,9 +48,11 @@ public:
  */
 class FileSink final : public LogSink {
 public:
-  // 构造函数
-  // @param pathname 文件路径
-  // @param autoFlush 是否每次写入后自动flush，默认false以提高性能
+  /**
+   * @brief 构造函数
+   * @param pathname 文件路径
+   * @param autoFlush 是否每次写入后自动flush，默认false以提高性能
+   */
   explicit FileSink(std::string pathname, bool autoFlush = false);
 
   void log(const char *data, size_t len) override;
@@ -63,21 +69,27 @@ protected:
  */
 class RollBySizeSink final : public LogSink {
 public:
-  // 构造函数
-  // @param basename 文件基础名称
-  // @param maxSize 最大文件大小（字节）
-  // @param autoFlush 是否每次写入后自动flush，默认false
+  /**
+   * @brief 构造函数
+   * @param basename 文件基础名称
+   * @param maxSize 最大文件大小（字节）
+   * @param autoFlush 是否每次写入后自动flush，默认false
+   */
   RollBySizeSink(std::string basename, size_t maxSize, bool autoFlush = false);
 
   void log(const char *data, size_t len) override;
 
 protected:
-  // 创建新文件名
-  // @return 新文件的完整路径
+  /**
+   * @brief 创建新文件
+   * @return 新文件的完整路径
+   */
   std::string createNewFile();
 
-  // 滚动到新文件
-  // 关闭当前文件，创建新文件
+  /**
+   * @brief 滚动到新文件
+   * 关闭当前文件，创建新文件
+   */
   void rollOver();
 
   std::string basename_; // 文件基础名称
@@ -94,14 +106,15 @@ protected:
  */
 class SinkFactory {
 public:
-  // 创建日志落地器
-  // @tparam SinkType 落地器类型
-  // @tparam Args 构造参数类型
-  // @param args 构造参数
-  // @return 日志落地器智能指针
+  /**
+   * @brief 创建日志落地器
+   * @tparam SinkType 落地器类型
+   * @tparam Args 构造参数类型
+   * @param args 构造参数
+   * @return 日志落地器智能指针
+   */
   template <typename SinkType, typename... Args>
   static LogSink::ptr create(Args &&...args) {
-    // 使用完美转发构造对象
     return std::make_shared<SinkType>(std::forward<Args>(args)...);
   }
 };

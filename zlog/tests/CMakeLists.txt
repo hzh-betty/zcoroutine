@@ -31,7 +31,7 @@ endforeach()
 
 # 基准测试
 if(benchmark_FOUND AND spdlog_FOUND AND glog_FOUND)
-    add_executable(zlog_benchmark bench/bench_main.cc)
+    add_executable(zlog_benchmark benchmark/bench_compare.cc)
     target_link_libraries(zlog_benchmark PRIVATE 
         zlog_static 
         benchmark::benchmark 
@@ -45,8 +45,8 @@ else()
     message(STATUS "Skipping zlog_benchmark (requires benchmark, spdlog, glog)")
 endif()
 
-# Perf Benchmark (for perf analysis - always build)
-add_executable(zlog_perf_bench bench/perf_bench.cc)
+# 性能测试
+add_executable(zlog_perf_bench benchmark/perf_bench.cc)
 target_link_libraries(zlog_perf_bench PRIVATE 
     zlog_static 
     Threads::Threads

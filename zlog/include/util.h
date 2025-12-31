@@ -1,9 +1,10 @@
 #ifndef ZLOG_UTIL_H_
 #define ZLOG_UTIL_H_
+
+#include <sys/stat.h>
+
 #include <atomic>
 #include <string>
-#include <thread>
-#include <sys/stat.h>
 
 namespace zlog {
 
@@ -23,7 +24,6 @@ public:
  * 2. exchange(acquire) 真正抢锁，建立同步
  * 3. unlock 使用 release，形成 happens-before
  * 4. 指数退避策略：缩短平均自旋时间，减少yield调用
-
  */
 class alignas(64) Spinlock : public NonCopyable {
 public:
@@ -34,7 +34,7 @@ public:
     if (!locked_.exchange(true, std::memory_order_acquire)) {
       return;
     }
-    
+
     // 慢速路径：指数退避自旋
     lock_slow();
   }
@@ -42,34 +42,11 @@ public:
   void unlock() noexcept { locked_.store(false, std::memory_order_release); }
 
 private:
-  static constexpr int kMaxSpinCount = 64;  // 最大自旋次数
+  static constexpr int kMaxSpinCount = 64; // 最大自旋次数
 
   std::atomic<bool> locked_{false};
 
-  void lock_slow() noexcept {
-    int spin_count = 1;
-    
-    for (;;) {
-      // 第一阶段：只读自旋（指数退避）
-      for (int i = 0; i < spin_count; ++i) {
-        if (!locked_.load(std::memory_order_relaxed)) {
-          // 尝试抢锁
-          if (!locked_.exchange(true, std::memory_order_acquire)) {
-            return;
-          }
-        }
-        cpu_relax();
-      }
-      
-      // 指数退避：翻倍自旋次数，但不超过上限
-      if (spin_count < kMaxSpinCount) {
-        spin_count <<=1;
-      } else {
-        // 达到上限，让出CPU
-        std::this_thread::yield();
-      }
-    }
-  }
+  void lock_slow() noexcept;
 
   static inline void cpu_relax() noexcept {
 #if defined(__x86_64__) || defined(__i386__)
@@ -81,7 +58,6 @@ private:
 #endif
   }
 };
-
 
 /**
  * @brief 日期工具类

@@ -1,11 +1,12 @@
 #ifndef ZLOG_FORMAT_H_
 #define ZLOG_FORMAT_H_
-#include "message.h"
-#include <fmt/color.h>
-#include <fmt/core.h>
 #include <memory>
 #include <vector>
 
+#include <fmt/color.h>
+#include <fmt/core.h>
+
+#include "message.h"
 namespace zlog {
 /**
  * @brief 格式化项抽象基类
