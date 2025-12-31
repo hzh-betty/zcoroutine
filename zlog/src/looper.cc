@@ -12,8 +12,12 @@ AsyncLooper::AsyncLooper(Functor func, const AsyncType looperType,
 
 void AsyncLooper::push(const char *data, const size_t len) {
   std::unique_lock<Spinlock> lock(mutex_);
-  if (looperType_ == AsyncType::ASYNC_SAFE) { // 安全模式下等待缓冲区有空闲空间
+  if (looperType_ == AsyncType::ASYNC_SAFE) {
+    // 安全模式下等待缓冲区有空闲空间
     condPro_.wait(lock, [&]() { return proBuf_.writeAbleSize() >= len; });
+  } else {
+    // UNSAFE模式下，如果扩容会超过最大缓冲区大小，则阻塞等待
+    condPro_.wait(lock, [&]() { return proBuf_.canAccommodate(len); });
   }
 
   proBuf_.push(data, len); // 向缓冲区推送数据
@@ -57,9 +61,8 @@ void AsyncLooper::threadEntry() {
       }
       conBuf_.swap(proBuf_);
 
-      // 3. 唤醒生产者 (仅SAFE模式)
-      if (looperType_ == AsyncType::ASYNC_SAFE)
-        condPro_.notify_one();
+      // 3. 唤醒生产者
+      condPro_.notify_one();
     }
 
     // 4.处理数据并初始化

@@ -77,18 +77,35 @@ void Buffer::swap(Buffer &buffer) noexcept {
 
 bool Buffer::empty() const { return readerIdx_ == writerIdx_; }
 
-void Buffer::ensureEnoughSize(size_t len) {
-  if (len <= writeAbleSize())
-    return;
+bool Buffer::canAccommodate(size_t len) const {
+  if (len <= writeAbleSize()) {
+    return true;
+  }
+  // 计算扩容后的大小
+  size_t newSize = calculateNewSize(len);
+  return newSize <= MAX_BUFFER_SIZE;
+}
+
+size_t Buffer::calculateNewSize(size_t len) const {
   size_t newSize = 0;
   if (capacity_ < THRESHOLD_BUFFER_SIZE) {
     newSize = capacity_ * 2 + len;
   } else {
     newSize = capacity_ + INCREMENT_BUFFER_SIZE + len;
   }
+  return newSize;
+}
+
+void Buffer::ensureEnoughSize(size_t len) {
+  if (len <= writeAbleSize())
+    return;
+  size_t newSize = calculateNewSize(len);
 
   if (newSize > MAX_BUFFER_SIZE) {
-    throw std::length_error("Buffer size exceeded MAX_BUFFER_SIZE");
+    newSize = MAX_BUFFER_SIZE;
+    if (newSize <= capacity_ || (newSize - capacity_) + writeAbleSize() < len) {
+      return; // 无法扩容，保持原状
+    }
   }
 
   char *newData = static_cast<char *>(std::realloc(data_, newSize));

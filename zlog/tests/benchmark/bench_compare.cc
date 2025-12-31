@@ -5,8 +5,10 @@
 #include <memory>
 #include <string>
 
+#include <dirent.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 // spdlog
 #include <spdlog/async.h>
@@ -17,8 +19,38 @@
 // glog
 #include <glog/logging.h>
 
+// 递归删除目录
+void remove_directory(const char *path) {
+  DIR *dir = opendir(path);
+  if (dir) {
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != nullptr) {
+      if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+        continue;
+      }
+      std::string full_path = std::string(path) + "/" + entry->d_name;
+      struct stat st;
+      if (stat(full_path.c_str(), &st) == 0) {
+        if (S_ISDIR(st.st_mode)) {
+          remove_directory(full_path.c_str());
+        } else {
+          unlink(full_path.c_str());
+        }
+      }
+    }
+    closedir(dir);
+  }
+  rmdir(path);
+}
+
 // 确保日志目录存在
 void prepare_log_dir() {
+  static std::once_flag once;
+  std::call_once(once, []() {
+    // 删除旧的日志目录
+    remove_directory("bench_logs");
+  });
+
   struct stat st = {0};
   if (stat("bench_logs", &st) == -1) {
     mkdir("bench_logs", 0755);
@@ -48,7 +80,7 @@ static void BM_Zlog_Sync(benchmark::State &state) {
   }
 }
 
-// Zlog 异步模式
+// Zlog 异步模式 (ASYNC_SAFE)
 static void BM_Zlog_Async(benchmark::State &state) {
   prepare_log_dir();
   auto formatter = std::make_shared<zlog::Formatter>();
@@ -65,6 +97,33 @@ static void BM_Zlog_Async(benchmark::State &state) {
     logger = std::make_shared<zlog::AsyncLogger>(
         "bench_async", zlog::LogLevel::value::INFO, formatter, sinks,
         zlog::AsyncType::ASYNC_SAFE, std::chrono::milliseconds(100));
+  });
+
+  std::string msg = make_string(state.range(0));
+
+  for (auto _ : state) {
+    logger->logImpl(zlog::LogLevel::value::INFO, __FILE__, __LINE__,
+                    msg.c_str());
+  }
+}
+
+// Zlog 异步模式 (ASYNC_UNSAFE)
+static void BM_Zlog_Async_Unsafe(benchmark::State &state) {
+  prepare_log_dir();
+  auto formatter = std::make_shared<zlog::Formatter>();
+  std::vector<zlog::LogSink::ptr> sinks;
+  // 所有线程共享同一个 Sink (模拟实际生产环境: 多线程 -> 1 Logger -> 1 File)
+  static auto sink =
+      std::make_shared<zlog::FileSink>("bench_logs/zlog_async_unsafe.log");
+  sinks.push_back(sink);
+
+  // 确保 Logger 只初始化一次
+  static std::shared_ptr<zlog::AsyncLogger> logger;
+  static std::once_flag flag;
+  std::call_once(flag, [&]() {
+    logger = std::make_shared<zlog::AsyncLogger>(
+        "bench_async_unsafe", zlog::LogLevel::value::INFO, formatter, sinks,
+        zlog::AsyncType::ASYNC_UNSAFE, std::chrono::milliseconds(100));
   });
 
   std::string msg = make_string(state.range(0));
@@ -152,6 +211,10 @@ BENCHMARK(BM_Zlog_Sync)
     ->Range(8, 4096)
     ->ThreadRange(1, 16);
 BENCHMARK(BM_Zlog_Async)
+    ->RangeMultiplier(512)
+    ->Range(8, 4096)
+    ->ThreadRange(1, 16);
+BENCHMARK(BM_Zlog_Async_Unsafe)
     ->RangeMultiplier(512)
     ->Range(8, 4096)
     ->ThreadRange(1, 16);

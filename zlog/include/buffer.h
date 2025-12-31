@@ -81,6 +81,13 @@ public:
   bool empty() const;
 
   /**
+   * @brief 检查是否可以容纳指定长度的数据而不超过最大缓冲区大小
+   * @param len 需要的空间大小
+   * @return 可以容纳返回true，否则返回false
+   */
+  bool canAccommodate(size_t len) const;
+
+  /**
    * @brief 获取缓冲区容量
    * @return 缓冲区总大小
    */
@@ -92,6 +99,13 @@ private:
    * @param len 需要的空间大小
    */
   void ensureEnoughSize(size_t len);
+
+  /**
+   * @brief 计算扩容后的新缓冲区大小
+   * @param len 需要额外容纳的空间大小
+   * @return 计算得到的新缓冲区大小
+   */
+  size_t calculateNewSize(size_t len) const;
 
   /**
    * @brief 移动写指针
