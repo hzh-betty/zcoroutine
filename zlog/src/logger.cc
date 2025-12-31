@@ -1,5 +1,5 @@
-#include "util.h"
 #include "logger.h"
+#include "util.h"
 namespace zlog {
 
 Logger::Logger(const char *loggerName, const LogLevel::value limitLevel,
@@ -11,7 +11,7 @@ void Logger::serialize(const LogLevel::value level, const char *file,
                        const size_t line, const char *data) {
   // 1. 线程本地日志消息对象，避免构造/析构开销
   thread_local LogMessage msg(LogLevel::value::DEBUG, "", 0, "", "");
-  
+
   // 2. 直接赋值（快速）
   msg.curtime_ = Date::getCurrentTime();
   msg.level_ = level;
@@ -20,14 +20,14 @@ void Logger::serialize(const LogLevel::value level, const char *file,
   msg.tid_ = std::this_thread::get_id();
   msg.payload_ = data;
   msg.loggerName_ = loggerName_;
-  
+
   // 3. 线程本地格式化缓冲区，避免内存分配
   thread_local fmt::memory_buffer buffer;
   buffer.clear();
-  
+
   // 4. 格式化
   formatter_->format(buffer, msg);
-  
+
   // 5. 日志
   log(buffer.data(), buffer.size());
 }

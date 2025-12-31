@@ -191,7 +191,7 @@ enum class LoggerType {
  * @brief 日志器建造者基类
  * 使用建造者模式降低用户使用成本
  */
-class LoggerBuilder:public NonCopyable  {
+class LoggerBuilder : public NonCopyable {
 public:
   virtual ~LoggerBuilder() = default;
 
@@ -269,7 +269,7 @@ protected:
  * @brief 局部日志器建造者
  * 创建局部作用域的日志器
  */
-class LocalLoggerBuilder final : public LoggerBuilder{
+class LocalLoggerBuilder final : public LoggerBuilder {
 public:
   /**
    * @brief 构建局部日志器

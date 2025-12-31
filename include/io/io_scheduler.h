@@ -9,7 +9,6 @@
 #include "scheduling/scheduler.h"
 #include "timer/timer_manager.h"
 
-
 namespace zcoroutine {
 /**
  * @brief IO调度器
@@ -26,7 +25,8 @@ public:
    * @param name 调度器名称
    * @param use_shared_stack 是否使用共享栈
    */
-  IoScheduler(int thread_count, const std::string &name, bool use_shared_stack = false);
+  IoScheduler(int thread_count, const std::string &name,
+              bool use_shared_stack = false);
 
   /**
    * @brief 析构函数
@@ -51,7 +51,7 @@ public:
    * @return 成功返回0，失败返回-1
    */
   int add_event(int fd, FdContext::Event event,
-                const std::function<void()>& callback = nullptr);
+                const std::function<void()> &callback = nullptr);
 
   /**
    * @brief 删除IO事件

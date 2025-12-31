@@ -8,8 +8,6 @@
 
 #include <stdexcept>
 
-
-
 namespace zlog {
 
 // 预热内存：touch所有页面避免首次访问时的page fault
@@ -97,7 +95,7 @@ void Buffer::ensureEnoughSize(size_t len) {
   if (!newData) {
     throw std::bad_alloc();
   }
-  
+
   // 预热新分配的内存区域
   if (newSize > capacity_) {
     prefaultMemory(newData + capacity_, newSize - capacity_);
@@ -105,7 +103,7 @@ void Buffer::ensureEnoughSize(size_t len) {
     madvise(newData, newSize, MADV_SEQUENTIAL);
 #endif
   }
-  
+
   data_ = newData;
   capacity_ = newSize;
 }

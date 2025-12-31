@@ -40,7 +40,7 @@ TEST_F(LevelTest, ComparisonLessThan) {
   EXPECT_TRUE(LogLevel::value::WARNING < LogLevel::value::ERROR);
   EXPECT_TRUE(LogLevel::value::ERROR < LogLevel::value::FATAL);
   EXPECT_TRUE(LogLevel::value::FATAL < LogLevel::value::OFF);
-  
+
   EXPECT_FALSE(LogLevel::value::INFO < LogLevel::value::DEBUG);
   EXPECT_FALSE(LogLevel::value::ERROR < LogLevel::value::INFO);
 }
@@ -49,7 +49,7 @@ TEST_F(LevelTest, ComparisonLessEqual) {
   EXPECT_TRUE(LogLevel::value::DEBUG <= LogLevel::value::DEBUG);
   EXPECT_TRUE(LogLevel::value::DEBUG <= LogLevel::value::INFO);
   EXPECT_TRUE(LogLevel::value::INFO <= LogLevel::value::WARNING);
-  
+
   EXPECT_FALSE(LogLevel::value::WARNING <= LogLevel::value::INFO);
 }
 
@@ -57,14 +57,14 @@ TEST_F(LevelTest, ComparisonGreaterThan) {
   EXPECT_TRUE(LogLevel::value::INFO > LogLevel::value::DEBUG);
   EXPECT_TRUE(LogLevel::value::ERROR > LogLevel::value::WARNING);
   EXPECT_TRUE(LogLevel::value::FATAL > LogLevel::value::ERROR);
-  
+
   EXPECT_FALSE(LogLevel::value::DEBUG > LogLevel::value::INFO);
 }
 
 TEST_F(LevelTest, ComparisonGreaterEqual) {
   EXPECT_TRUE(LogLevel::value::INFO >= LogLevel::value::INFO);
   EXPECT_TRUE(LogLevel::value::ERROR >= LogLevel::value::INFO);
-  
+
   EXPECT_FALSE(LogLevel::value::DEBUG >= LogLevel::value::INFO);
 }
 
@@ -77,7 +77,7 @@ TEST_F(LevelTest, LevelOrdering) {
   orderedLevels.push_back(LogLevel::value::ERROR);
   orderedLevels.push_back(LogLevel::value::FATAL);
   orderedLevels.push_back(LogLevel::value::OFF);
-  
+
   for (size_t i = 0; i < orderedLevels.size() - 1; i++) {
     EXPECT_TRUE(orderedLevels[i] < orderedLevels[i + 1])
         << "Level " << LogLevel::toString(orderedLevels[i])
@@ -95,7 +95,7 @@ TEST_F(LevelTest, EnumValues) {
   EXPECT_EQ(static_cast<int>(LogLevel::value::OFF), 6);
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

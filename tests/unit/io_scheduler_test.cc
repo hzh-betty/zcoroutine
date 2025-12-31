@@ -6,13 +6,13 @@ using namespace zcoroutine;
 
 class IoSchedulerTest : public ::testing::Test {
 protected:
-    void SetUp() override {}
-    void TearDown() override {}
+  void SetUp() override {}
+  void TearDown() override {}
 };
 
 TEST_F(IoSchedulerTest, AddInvalidFd) {
   IoScheduler scheduler(1, "test");
-  
+
   // FD -1 is invalid
   EXPECT_EQ(scheduler.add_event(-1, FdContext::kRead), -1);
 }

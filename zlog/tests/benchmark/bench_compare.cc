@@ -17,7 +17,7 @@
 // glog
 #include <glog/logging.h>
 
-// 确保日志目录存在 
+// 确保日志目录存在
 void prepare_log_dir() {
   struct stat st = {0};
   if (stat("bench_logs", &st) == -1) {

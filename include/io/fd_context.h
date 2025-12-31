@@ -11,7 +11,7 @@
 
 namespace zcoroutine {
 
-  class Fiber;
+class Fiber;
 /**
  * @brief 文件描述符上下文类
  *
@@ -118,15 +118,15 @@ public:
 
 private:
   // 热数据：最常访问，放在开头
-  int fd_;                 // 文件描述符 - 4字节
-  int events_ = kNone;     // 当前注册的事件 - 4字节
-  
+  int fd_;             // 文件描述符 - 4字节
+  int events_ = kNone; // 当前注册的事件 - 4字节
+
   // 事件上下文：紧接着热数据
   EventContext read_ctx_;  // 读事件上下文 - 32字节
   EventContext write_ctx_; // 写事件上下文 - 32字节
-  
+
   // 冷数据：竞争保护，放在最后降低false sharing
-  alignas(64) std::mutex mutex_;  // 保护上下文的互斥锁 - 独占缓存行
+  alignas(64) std::mutex mutex_; // 保护上下文的互斥锁 - 独占缓存行
 };
 
 } // namespace zcoroutine

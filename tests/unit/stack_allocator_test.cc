@@ -15,7 +15,7 @@ protected:
 };
 
 TEST_F(StackAllocatorTest, AllocateZero) {
-  void* ptr = StackAllocator::allocate(0);
+  void *ptr = StackAllocator::allocate(0);
   EXPECT_EQ(ptr, nullptr);
 }
 

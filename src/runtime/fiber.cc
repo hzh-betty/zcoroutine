@@ -1,6 +1,5 @@
 #include "runtime/fiber.h"
 
-
 #include <cassert>
 #include <utility>
 
@@ -55,7 +54,7 @@ void Fiber::confirm_switch_target() {
 // 统一的协程切换函数
 // 对于共享栈协程，先切换到专用 switch stack，然后执行栈保存/恢复操作
 // 整个过程不使用任何 magic number，完全 ABI 安全
-void Fiber::co_swap(const Fiber::ptr& curr, const Fiber::ptr& target) {
+void Fiber::co_swap(const Fiber::ptr &curr, const Fiber::ptr &target) {
   const bool needs_switch_stack =
       curr->shared_ctx_ && curr->shared_ctx_->is_shared_stack() ||
       target->shared_ctx_ && target->shared_ctx_->is_shared_stack();
@@ -213,10 +212,9 @@ Fiber::Fiber(Fiber &&other) noexcept
     : state_(other.state_), id_(other.id_), stack_ptr_(other.stack_ptr_),
       stack_size_(other.stack_size_), context_(std::move(other.context_)),
       name_(std::move(other.name_)), callback_(std::move(other.callback_)),
-      shared_ctx_(std::move(other.shared_ctx_)) {
-}
+      shared_ctx_(std::move(other.shared_ctx_)) {}
 
-Fiber & Fiber::operator=(Fiber &&other) noexcept {
+Fiber &Fiber::operator=(Fiber &&other) noexcept {
   if (this != &other) {
     state_ = other.state_;
     id_ = other.id_;
@@ -371,7 +369,7 @@ void Fiber::main_func() {
 
 Fiber::ptr Fiber::get_this() { return ThreadContext::get_current_fiber(); }
 
-void Fiber::set_this(const Fiber::ptr& fiber) {
+void Fiber::set_this(const Fiber::ptr &fiber) {
   ThreadContext::set_current_fiber(fiber);
 }
 

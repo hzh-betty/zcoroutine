@@ -63,7 +63,8 @@ TEST_F(SchedulerFiberIntegrationTest, ScheduleMultipleFibers) {
   scheduler_->start();
 
   for (int i = 0; i < fiber_count; ++i) {
-    auto fiber = std::make_shared<Fiber>([&completed]() { completed.fetch_add(1); });
+    auto fiber =
+        std::make_shared<Fiber>([&completed]() { completed.fetch_add(1); });
     scheduler_->schedule(fiber);
   }
 
@@ -97,7 +98,8 @@ TEST_F(SchedulerFiberIntegrationTest, FiberPoolIntegration) {
 
   // 直接创建并调度协程（之前使用协程池）
   for (int i = 0; i < 50; ++i) {
-    auto fiber = std::make_shared<Fiber>([&executed]() { executed.fetch_add(1); });
+    auto fiber =
+        std::make_shared<Fiber>([&executed]() { executed.fetch_add(1); });
     scheduler_->schedule(fiber);
   }
 
@@ -174,8 +176,8 @@ TEST_F(SchedulerFiberIntegrationTest, MixedFiberAndCallback) {
 
   for (int i = 0; i < 50; ++i) {
     if (i % 2 == 0) {
-      auto fiber =
-          std::make_shared<Fiber>([&fiber_count]() { fiber_count.fetch_add(1); });
+      auto fiber = std::make_shared<Fiber>(
+          [&fiber_count]() { fiber_count.fetch_add(1); });
       scheduler_->schedule(fiber);
     } else {
       scheduler_->schedule(

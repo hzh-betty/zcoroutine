@@ -26,7 +26,7 @@ public:
     if (!locked_.exchange(true, std::memory_order_acquire)) {
       return;
     }
-    
+
     // 慢速路径：指数退避自旋
     lock_slow();
   }
@@ -34,13 +34,13 @@ public:
   void unlock() noexcept { locked_.store(false, std::memory_order_release); }
 
 private:
-  static constexpr int kMaxSpinCount = 64;  // 最大自旋次数
+  static constexpr int kMaxSpinCount = 64; // 最大自旋次数
 
   std::atomic<bool> locked_{false};
 
   void lock_slow() noexcept {
     int spin_count = 1;
-    
+
     for (;;) {
       // 第一阶段：只读自旋（指数退避）
       for (int i = 0; i < spin_count; ++i) {
@@ -52,10 +52,10 @@ private:
         }
         cpu_relax();
       }
-      
+
       // 指数退避：翻倍自旋次数，但不超过上限
       if (spin_count < kMaxSpinCount) {
-        spin_count <<=1;
+        spin_count <<= 1;
       } else {
         // 达到上限，让出CPU
         std::this_thread::yield();

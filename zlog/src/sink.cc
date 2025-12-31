@@ -7,7 +7,7 @@ void StdOutSink::log(const char *data, size_t len) {
   fmt::print(stdout, "{:.{}}", data, len);
 }
 
-FileSink::FileSink(std::string pathname, bool autoFlush) 
+FileSink::FileSink(std::string pathname, bool autoFlush)
     : pathname_(std::move(pathname)), autoFlush_(autoFlush) {
   File::createDirectory(File::path(pathname_));
   // 使用较大的内部缓冲区提高性能
@@ -23,7 +23,8 @@ void FileSink::log(const char *data, size_t len) {
   }
 }
 
-RollBySizeSink::RollBySizeSink(std::string basename, const size_t maxSize, bool autoFlush)
+RollBySizeSink::RollBySizeSink(std::string basename, const size_t maxSize,
+                               bool autoFlush)
     : basename_(std::move(basename)), maxSize_(maxSize), curSize_(0),
       nameCount_(0), autoFlush_(autoFlush) {
   // 1.创建日志文件所用的路径

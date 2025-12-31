@@ -17,7 +17,7 @@ void AsyncLooper::push(const char *data, const size_t len) {
   }
 
   proBuf_.push(data, len); // 向缓冲区推送数据
-  
+
   if (proBuf_.readAbleSize() >= FLUSH_BUFFER_SIZE) { // 缓冲区可读空间大于阈值
     condCon_.notify_one();
   }

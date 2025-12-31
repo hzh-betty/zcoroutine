@@ -5,7 +5,6 @@
 #include <array>
 #include <memory>
 
-
 namespace zcoroutine {
 
 // 前向声明
@@ -79,7 +78,7 @@ public:
    * @brief 设置主协程
    * @param fiber 主协程指针
    */
-  static void set_main_fiber(const Fiber::ptr& fiber);
+  static void set_main_fiber(const Fiber::ptr &fiber);
 
   /**
    * @brief 获取主协程
@@ -91,7 +90,7 @@ public:
    * @brief 设置当前执行的协程
    * @param fiber 协程指针
    */
-  static void set_current_fiber(const Fiber::ptr& fiber);
+  static void set_current_fiber(const Fiber::ptr &fiber);
 
   /**
    * @brief 获取当前执行的协程
@@ -103,7 +102,7 @@ public:
    * @brief 设置调度器协程
    * @param fiber 调度器协程指针
    */
-  static void set_scheduler_fiber(const Fiber::ptr& fiber);
+  static void set_scheduler_fiber(const Fiber::ptr &fiber);
 
   /**
    * @brief 获取调度器协程
@@ -168,7 +167,7 @@ public:
    * @brief 设置待切换的目标协程
    * @param fiber 目标协程
    */
-  static void set_pending_fiber(const Fiber::ptr& fiber);
+  static void set_pending_fiber(const Fiber::ptr &fiber);
 
   /**
    * @brief 获取待切换的目标协程
@@ -188,7 +187,7 @@ public:
    */
   static bool is_hook_enabled();
 
-  static void push_call_stack(const Fiber::ptr& fiber);
+  static void push_call_stack(const Fiber::ptr &fiber);
   static Fiber::ptr pop_call_stack();
   static Fiber::ptr top_call_stack();
   static int call_stack_size();

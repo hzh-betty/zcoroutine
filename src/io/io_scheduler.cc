@@ -15,8 +15,9 @@ FdContext::ptr IoScheduler::get_fd_context(int fd, bool auto_create) {
   return fd_context_table_->get(fd);
 }
 
-IoScheduler::IoScheduler(int thread_count, const std::string &name, bool use_shared_stack)
-    : Scheduler(thread_count, name,use_shared_stack ) {
+IoScheduler::IoScheduler(int thread_count, const std::string &name,
+                         bool use_shared_stack)
+    : Scheduler(thread_count, name, use_shared_stack) {
   ZCOROUTINE_LOG_INFO(
       "IoScheduler::IoScheduler initializing name={}, thread_count={}", name,
       thread_count);
@@ -104,7 +105,7 @@ void IoScheduler::stop() {
 }
 
 int IoScheduler::add_event(int fd, FdContext::Event event,
-                           const std::function<void()>& callback) {
+                           const std::function<void()> &callback) {
   ZCOROUTINE_LOG_DEBUG(
       "IoScheduler::add_event fd={}, event={}, has_callback={}", fd,
       FdContext::event_to_string(event), callback != nullptr);
@@ -123,7 +124,8 @@ int IoScheduler::add_event(int fd, FdContext::Event event,
   } else {
     // 如果没有回调，使用当前协程
     auto current_fiber = Fiber::get_this();
-    // Fiber::get_this() 会自动创建主协程，所以理论上不会为空，除非内存分配失败(抛出异常)
+    // Fiber::get_this()
+    // 会自动创建主协程，所以理论上不会为空，除非内存分配失败(抛出异常)
     event_ctx.fiber = current_fiber;
   }
 
@@ -321,7 +323,7 @@ void IoScheduler::io_thread_func() {
 
   std::vector<epoll_event> events;
   events.reserve(256); // 预分配容量，减少重新分配
-  
+
   // 动态timeout优化参数
   static constexpr int kMinTimeout = 1;     // 最小超时 1ms
   static constexpr int kMaxTimeout = 5000;  // 最大超时 5s
@@ -331,7 +333,7 @@ void IoScheduler::io_thread_func() {
   while (!stopping_.load(std::memory_order_relaxed)) {
     // 获取下一个定时器超时时间
     int timeout = timer_manager_->get_next_timeout();
-    
+
     // 动态调整timeout：根据负载情况调整
     if (timeout < 0) {
       // 没有定时器，根据空闲程度动态调整
@@ -340,7 +342,7 @@ void IoScheduler::io_thread_func() {
       // 限制在合理范围内
       timeout = std::max(kMinTimeout, std::min(timeout, kMaxTimeout));
     }
-    
+
     ZCOROUTINE_LOG_DEBUG(
         "IoScheduler::io_thread_func waiting for events, timeout={}ms",
         timeout);

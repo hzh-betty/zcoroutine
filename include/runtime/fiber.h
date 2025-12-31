@@ -10,7 +10,6 @@
 #include "runtime/shared_stack.h"
 #include "runtime/stack_allocator.h"
 
-
 namespace zcoroutine {
 
 // 前向声明
@@ -81,11 +80,10 @@ public:
    */
   Fiber(Fiber &&other) noexcept;
 
-
   /**
    * @brief 移动复制函数
    * @param other 右值引用对象
-  */
+   */
   Fiber &operator=(Fiber &&other) noexcept;
 
   /**
@@ -179,7 +177,7 @@ public:
    * @brief 设置当前协程
    * @param fiber 协程指针
    */
-  static void set_this(const Fiber::ptr& fiber);
+  static void set_this(const Fiber::ptr &fiber);
 
 private:
   // Scheduler需要访问私有构造函数创建main_fiber
@@ -202,16 +200,16 @@ private:
    * @param curr 当前协程
    * @param target 目标协程
    */
-  static void co_swap(const Fiber::ptr& curr, const Fiber::ptr& target);
+  static void co_swap(const Fiber::ptr &curr, const Fiber::ptr &target);
 
   // 缓存优化：将热数据（频繁访问）放在前面
   State state_ = State::kReady; // 协程状态 - 最常访问
   uint64_t id_ = 0;             // 协程唯一ID - 常访问
   void *stack_ptr_ = nullptr;   // 栈指针 - 常访问
   size_t stack_size_ = 0;       // 栈大小
-  
+
   std::unique_ptr<Context> context_; // 上下文对象
-  std::string name_;            // 协程名称 - 主要用于日志
+  std::string name_;                 // 协程名称 - 主要用于日志
 
   std::function<void()> callback_; // 协程执行函数
   std::exception_ptr exception_;   // 协程异常指针

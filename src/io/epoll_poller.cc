@@ -81,7 +81,8 @@ int EpollPoller::del_event(int fd) {
 }
 
 int EpollPoller::wait(int timeout_ms, std::vector<epoll_event> &events) {
-  int nfds = epoll_wait(epoll_fd_, &events_[0], static_cast<int>(max_events_), timeout_ms);
+  int nfds = epoll_wait(epoll_fd_, &events_[0], static_cast<int>(max_events_),
+                        timeout_ms);
 
   if (nfds < 0) {
     if (errno == EINTR) {

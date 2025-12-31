@@ -129,9 +129,8 @@ protected:
   std::atomic<int> idle_thread_count_;   // 空闲线程数
 
   // 共享栈相关
-  bool use_shared_stack_ = false; // 是否使用共享栈模式
-  SharedStack::ptr shared_stack_ =
-      nullptr; // 共享栈
+  bool use_shared_stack_ = false;           // 是否使用共享栈模式
+  SharedStack::ptr shared_stack_ = nullptr; // 共享栈
 };
 
 } // namespace zcoroutine
