@@ -11,16 +11,14 @@ AsyncLooper::AsyncLooper(Functor func, const AsyncType looperType,
       callBack_(std::move(func)), milliseco_(milliseco) {}
 
 void AsyncLooper::push(const char *data, const size_t len) {
-  {
-    std::unique_lock<Spinlock> lock(mutex_);
-    if (looperType_ == AsyncType::ASYNC_SAFE) {
-      condPro_.wait(lock, [&]() { return proBuf_.writeAbleSize() >= len; });
-    }
-    proBuf_.push(data, len);
+  std::unique_lock<Spinlock> lock(mutex_);
+  if (looperType_ == AsyncType::ASYNC_SAFE) { // 安全模式下等待缓冲区有空闲空间
+    condPro_.wait(lock, [&]() { return proBuf_.writeAbleSize() >= len; });
   }
 
-  // 使用原子操作避免重新加锁
-  if (proBuf_.readAbleSize() >= FLUSH_BUFFER_SIZE) {
+  proBuf_.push(data, len); // 向缓冲区推送数据
+  
+  if (proBuf_.readAbleSize() >= FLUSH_BUFFER_SIZE) { // 缓冲区可读空间大于阈值
     condCon_.notify_one();
   }
 }
