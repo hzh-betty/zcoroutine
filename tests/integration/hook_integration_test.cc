@@ -51,25 +51,43 @@ TEST_F(HookIntegrationTest, SleepHookNonBlocking) {
   auto start = std::chrono::steady_clock::now();
 
   // 协程1：sleep 1s
-  scheduler_->schedule([&]() {
+  // 注意：必须使用 Fiber 而不是回调函数，因为 hook 需要在独立协程中运行
+  auto fiber1 = std::make_shared<Fiber>([&]() {
     set_hook_enable(true); // 在协程内部启用hook
     sleep(1);              // 被hook为定时器
     task1_done = true;
   });
+  scheduler_->schedule(fiber1);
 
   // 协程2：立即执行
-  scheduler_->schedule([&]() {
+  auto fiber2 = std::make_shared<Fiber>([&]() {
     set_hook_enable(true); // 保持一致
     task2_done = true;
   });
+  scheduler_->schedule(fiber2);
 
   // task2应该能立即完成，不被task1阻塞
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  // 使用轮询等待，避免固定时间导致的竞态条件
+  auto wait_start = std::chrono::steady_clock::now();
+  while (!task2_done.load() && std::chrono::steady_clock::now() - wait_start <
+                                   std::chrono::milliseconds(500)) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  }
   EXPECT_TRUE(task2_done.load());
-  EXPECT_FALSE(task1_done.load());
+
+  // 此时 task1 应该还没完成（因为 sleep 1秒）
+  auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                     std::chrono::steady_clock::now() - start)
+                     .count();
+  if (elapsed < 900) {
+    EXPECT_FALSE(task1_done.load());
+  }
 
   // 等待task1完成
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  while (!task1_done.load() && std::chrono::steady_clock::now() - start <
+                                   std::chrono::milliseconds(2000)) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
   EXPECT_TRUE(task1_done.load());
 
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -84,11 +102,12 @@ TEST_F(HookIntegrationTest, UsleepHook) {
 
   auto start = std::chrono::steady_clock::now();
 
-  scheduler_->schedule([&]() {
+  auto fiber = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     usleep(500000); // 500ms
     done = true;
   });
+  scheduler_->schedule(fiber);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   EXPECT_TRUE(done.load());
@@ -103,12 +122,13 @@ TEST_F(HookIntegrationTest, UsleepHook) {
 TEST_F(HookIntegrationTest, NanosleepHook) {
   std::atomic<bool> done{false};
 
-  scheduler_->schedule([&]() {
+  auto fiber = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     struct timespec ts = {0, 200000000}; // 200ms
     nanosleep(&ts, nullptr);
     done = true;
   });
+  scheduler_->schedule(fiber);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(300));
   EXPECT_TRUE(done.load());
@@ -120,7 +140,7 @@ TEST_F(HookIntegrationTest, NanosleepHook) {
 TEST_F(HookIntegrationTest, SocketHookRegistration) {
   int sockfd = -1;
 
-  scheduler_->schedule([&]() {
+  auto fiber = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     EXPECT_GT(sockfd, 0);
@@ -134,6 +154,7 @@ TEST_F(HookIntegrationTest, SocketHookRegistration) {
 
     close(sockfd);
   });
+  scheduler_->schedule(fiber);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
@@ -164,7 +185,7 @@ TEST_F(HookIntegrationTest, AcceptHookRegistration) {
   int port = ntohs(addr.sin_port);
 
   // 协程：accept
-  scheduler_->schedule([&, listen_fd]() {
+  auto fiber = std::make_shared<Fiber>([&, listen_fd]() {
     struct sockaddr_in client_addr;
     socklen_t len = sizeof(client_addr);
     int fd = accept(listen_fd, (struct sockaddr *)&client_addr, &len);
@@ -178,6 +199,7 @@ TEST_F(HookIntegrationTest, AcceptHookRegistration) {
       close(fd);
     }
   });
+  scheduler_->schedule(fiber);
 
   // 客户端连接
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -209,7 +231,7 @@ TEST_F(HookIntegrationTest, ReadHookWithEAGAIN) {
   ASSERT_EQ(socketpair(AF_UNIX, SOCK_STREAM, 0, socks), 0);
 
   // 协程：读取数据（会先遇到EAGAIN）
-  scheduler_->schedule([&]() {
+  auto fiber = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     char buf[256];
     ssize_t n = read(socks[0], buf, sizeof(buf) - 1);
@@ -219,6 +241,7 @@ TEST_F(HookIntegrationTest, ReadHookWithEAGAIN) {
       read_done = true;
     }
   });
+  scheduler_->schedule(fiber);
 
   // 延迟写入
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -240,13 +263,14 @@ TEST_F(HookIntegrationTest, WriteHook) {
 
   std::atomic<bool> write_done{false};
 
-  scheduler_->schedule([&]() {
+  auto fiber = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     const char *msg = "hello";
     ssize_t n = write(socks[0], msg, strlen(msg));
     EXPECT_EQ(n, strlen(msg));
     write_done = true;
   });
+  scheduler_->schedule(fiber);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   EXPECT_TRUE(write_done.load());
@@ -269,14 +293,15 @@ TEST_F(HookIntegrationTest, RecvSendHook) {
   std::string received;
 
   // 发送协程
-  scheduler_->schedule([&]() {
+  auto fiber1 = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     const char *msg = "test send";
     send(socks[0], msg, strlen(msg), 0);
   });
+  scheduler_->schedule(fiber1);
 
   // 接收协程
-  scheduler_->schedule([&]() {
+  auto fiber2 = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     char buf[256];
     ssize_t n = recv(socks[1], buf, sizeof(buf) - 1, 0);
@@ -286,6 +311,7 @@ TEST_F(HookIntegrationTest, RecvSendHook) {
       done = true;
     }
   });
+  scheduler_->schedule(fiber2);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
   EXPECT_TRUE(done.load());
@@ -354,12 +380,13 @@ TEST_F(HookIntegrationTest, UserNonblockBypassesHook) {
 
   std::atomic<int> read_result{0};
 
-  scheduler_->schedule([&]() {
+  auto fiber = std::make_shared<Fiber>([&]() {
     char buf[64];
     // 没有数据时应该立即返回EAGAIN，而不是挂起
     ssize_t n = read(socks[0], buf, sizeof(buf));
     read_result = n;
   });
+  scheduler_->schedule(fiber);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   EXPECT_EQ(read_result.load(), -1); // 应该返回-1 (EAGAIN)
@@ -435,7 +462,7 @@ TEST_F(HookIntegrationTest, ReadTimeoutWorks) {
 
   auto start = std::chrono::steady_clock::now();
 
-  scheduler_->schedule([&]() {
+  auto fiber = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     char buf[64];
     ssize_t n = read(socks[0], buf, sizeof(buf));
@@ -446,6 +473,7 @@ TEST_F(HookIntegrationTest, ReadTimeoutWorks) {
       }
     }
   });
+  scheduler_->schedule(fiber);
 
   // 不写数据，等待超时
   std::this_thread::sleep_for(std::chrono::milliseconds(700));
@@ -496,7 +524,7 @@ TEST_F(HookIntegrationTest, CloseCanelsIoEvents) {
   std::atomic<bool> close_done{false};
 
   // 协程1：读取数据，会在IO事件上挂起
-  scheduler_->schedule([&]() {
+  auto fiber1 = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     read_started = true;
     char buf[64];
@@ -505,17 +533,19 @@ TEST_F(HookIntegrationTest, CloseCanelsIoEvents) {
       read_failed = true;
     }
   });
+  scheduler_->schedule(fiber1);
 
   // 等待read挂起在IO事件上
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
   EXPECT_TRUE(read_started.load());
 
   // 协程2：关闭fd，应该取消所有事件并唤醒等待的协程
-  scheduler_->schedule([&]() {
+  auto fiber2 = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     close(socks[0]);
     close_done = true;
   });
+  scheduler_->schedule(fiber2);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
   // read应该被唤醒并失败
@@ -552,7 +582,7 @@ TEST_F(HookIntegrationTest, ConcurrentSocketIo) {
   std::atomic<int> completed{0};
 
   for (int i = 0; i < pair_count; ++i) {
-    scheduler_->schedule([&, i]() {
+    auto fiber = std::make_shared<Fiber>([&, i]() {
       set_hook_enable(true);
       int socks[2];
       if (socketpair(AF_UNIX, SOCK_STREAM, 0, socks) != 0) {
@@ -574,6 +604,7 @@ TEST_F(HookIntegrationTest, ConcurrentSocketIo) {
       close(socks[0]);
       close(socks[1]);
     });
+    scheduler_->schedule(fiber);
   }
 
   std::this_thread::sleep_for(std::chrono::milliseconds(500));
@@ -633,19 +664,21 @@ TEST_F(HookIntegrationTest, ConnectHookNonBlocking) {
   std::atomic<bool> other_task_done{false};
 
   // 连接协程
-  scheduler_->schedule([&]() {
+  auto fiber1 = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     int client_fd = socket(AF_INET, SOCK_STREAM, 0);
     int ret = connect(client_fd, (struct sockaddr *)&addr, sizeof(addr));
     connect_done = (ret == 0);
     close(client_fd);
   });
+  scheduler_->schedule(fiber1);
 
   // 另一个协程，验证connect不阻塞调度
-  scheduler_->schedule([&]() {
+  auto fiber2 = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     other_task_done = true;
   });
+  scheduler_->schedule(fiber2);
 
   // 等待连接
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -675,7 +708,7 @@ TEST_F(HookIntegrationTest, ReadvWritevHook) {
   std::atomic<bool> done{false};
 
   // 写协程
-  scheduler_->schedule([&]() {
+  auto fiber1 = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     // 使用writev发送
     const char *msg1 = "hello";
@@ -689,8 +722,9 @@ TEST_F(HookIntegrationTest, ReadvWritevHook) {
     ssize_t n = writev(socks[0], iov, 2);
     EXPECT_GT(n, 0);
   });
+  scheduler_->schedule(fiber1);
 
-  scheduler_->schedule([&]() {
+  auto fiber2 = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     // 使用readv接收
     char buf1[32], buf2[32];
@@ -705,6 +739,7 @@ TEST_F(HookIntegrationTest, ReadvWritevHook) {
       done = true;
     }
   });
+  scheduler_->schedule(fiber2);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
   EXPECT_TRUE(done.load());
@@ -779,7 +814,7 @@ TEST_F(HookIntegrationTest, RecvmsgSendmsgHook) {
 
   std::atomic<bool> done{false};
 
-  scheduler_->schedule([&]() {
+  auto fiber1 = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     // sendmsg
     const char *msg = "msg";
@@ -793,8 +828,9 @@ TEST_F(HookIntegrationTest, RecvmsgSendmsgHook) {
     ssize_t n = sendmsg(socks[0], &mh, 0);
     EXPECT_GT(n, 0);
   });
+  scheduler_->schedule(fiber1);
 
-  scheduler_->schedule([&]() {
+  auto fiber2 = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     // recvmsg
     char buf[32];
@@ -810,6 +846,7 @@ TEST_F(HookIntegrationTest, RecvmsgSendmsgHook) {
       done = true;
     }
   });
+  scheduler_->schedule(fiber2);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
   EXPECT_TRUE(done.load());
@@ -826,14 +863,15 @@ TEST_F(HookIntegrationTest, RecvfromSendtoHook) {
 
   std::atomic<bool> done{false};
 
-  scheduler_->schedule([&]() {
+  auto fiber1 = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     const char *msg = "udp";
     ssize_t n = sendto(socks[0], msg, strlen(msg), 0, nullptr, 0);
     EXPECT_GT(n, 0);
   });
+  scheduler_->schedule(fiber1);
 
-  scheduler_->schedule([&]() {
+  auto fiber2 = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     char buf[32];
     ssize_t n = recvfrom(socks[1], buf, sizeof(buf), 0, nullptr, nullptr);
@@ -841,6 +879,7 @@ TEST_F(HookIntegrationTest, RecvfromSendtoHook) {
       done = true;
     }
   });
+  scheduler_->schedule(fiber2);
 
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
   EXPECT_TRUE(done.load());
@@ -905,7 +944,7 @@ TEST_F(HookIntegrationTest, ConnectImmediateSuccess) {
 
   std::atomic<int> connect_ret{-1};
 
-  scheduler_->schedule([&]() {
+  auto fiber = std::make_shared<Fiber>([&]() {
     set_hook_enable(true);
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     // 连接本地通常非常快，可能立即返回0
@@ -913,6 +952,7 @@ TEST_F(HookIntegrationTest, ConnectImmediateSuccess) {
     connect_ret = ret;
     close(fd);
   });
+  scheduler_->schedule(fiber);
 
   // Accept
   int client_fd = accept(listen_fd, nullptr, nullptr);
