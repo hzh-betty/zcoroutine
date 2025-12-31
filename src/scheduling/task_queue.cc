@@ -1,4 +1,5 @@
 #include "scheduling/task_queue.h"
+#include <chrono>
 #include <mutex>
 
 namespace zcoroutine {
@@ -37,7 +38,7 @@ bool TaskQueue::try_pop(Task &task) {
   return false;
 }
 
-bool TaskQueue::pop(Task &task) {
+bool TaskQueue::pop(Task &task, int timeout_ms) {
   // 先尝试快速路径
   if (try_pop(task)) {
     return true;
@@ -45,7 +46,19 @@ bool TaskQueue::pop(Task &task) {
   
   // 快速路径失败，进入阻塞等待
   std::unique_lock<Spinlock> lock(spinlock_);
-  cv_.wait(lock, [this] { return stopped_ || !tasks_.empty(); });
+  
+  if (timeout_ms > 0) {
+    // 带超时等待
+    auto deadline = std::chrono::steady_clock::now() + 
+                    std::chrono::milliseconds(timeout_ms);
+    if (!cv_.wait_until(lock, deadline, [this] { return stopped_ || !tasks_.empty(); })) {
+      // 超时
+      return false;
+    }
+  } else {
+    // 永久等待
+    cv_.wait(lock, [this] { return stopped_ || !tasks_.empty(); });
+  }
 
   if (!tasks_.empty()) {
     task = std::move(tasks_.front());

@@ -2,7 +2,6 @@
 
 #include <cstddef>
 #include <cstdlib>
-#include <cstring>
 
 #include "util/zcoroutine_logger.h"
 namespace zcoroutine {
@@ -16,15 +15,16 @@ void *StackAllocator::allocate(size_t size) {
   }
 
   // 使用malloc分配栈内存
+  // 注意：不进行memset清零，因为：
+  // 1. 协程栈在使用时会被正常初始化
+  // 2. 避免触发大量page fault（memset会touch每个页面）
+  // 3. 依赖内核的COW机制，按需分配物理页
   void *ptr = malloc(size);
   if (!ptr) {
     ZCOROUTINE_LOG_ERROR(
         "StackAllocator::allocate malloc failed: requested_size={}", size);
     return nullptr;
   }
-
-  // 清零内存
-  memset(ptr, 0, size);
 
   ZCOROUTINE_LOG_DEBUG("StackAllocator::allocate success: ptr={}, size={}", ptr,
                        size);

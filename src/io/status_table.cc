@@ -70,7 +70,9 @@ uint64_t SocketStatus::get_timeout(const int type) const {
 }
 
 StatusTable::StatusTable() {
-  fd_datas_.resize(64);
+  // 预分配较大容量，避免频繁扩容
+  // Linux默认软限制约 1024，硬限制约 4096
+  fd_datas_.resize(4096);
 }
 
 SocketStatus::ptr StatusTable::get(int fd, bool auto_create) {

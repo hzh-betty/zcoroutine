@@ -8,13 +8,13 @@
 namespace zcoroutine {
 
 /**
- * @brief 高性能自旋锁（两阶段 + 自适应 backoff）
+ * @brief 高性能自旋锁（指数退避 + 自适应）
  *
  * 设计要点：
  * 1. load(relaxed) 只读自旋，减少 cache line 抖动
  * 2. exchange(acquire) 真正抢锁，建立同步
  * 3. unlock 使用 release，形成 happens-before
- * 4. 短自旋使用 cpu_relax，长自旋让出 CPU
+ * 4. 指数退避策略：缩短平均自旋时间，减少yield调用
 
  */
 class alignas(64) Spinlock : public NonCopyable {
@@ -22,32 +22,46 @@ public:
   Spinlock() noexcept = default;
 
   void lock() noexcept {
-    int spin = 0;
-
-    for (;;) {
-      // 第一阶段：只读自旋（不修改 cache line）
-      while (locked_.load(std::memory_order_relaxed)) {
-        if (spin < kSpinLimit) {
-          cpu_relax();
-          ++spin;
-        } else {
-          std::this_thread::yield();
-        }
-      }
-
-      // 第二阶段：真正抢锁
-      if (!locked_.exchange(true, std::memory_order_acquire)) {
-        return;
-      }
+    // 快速路径：立即尝试获取锁
+    if (!locked_.exchange(true, std::memory_order_acquire)) {
+      return;
     }
+    
+    // 慢速路径：指数退避自旋
+    lock_slow();
   }
 
   void unlock() noexcept { locked_.store(false, std::memory_order_release); }
 
 private:
-  static constexpr int kSpinLimit = 16;
+  static constexpr int kMaxSpinCount = 64;  // 最大自旋次数
 
   std::atomic<bool> locked_{false};
+
+  void lock_slow() noexcept {
+    int spin_count = 1;
+    
+    for (;;) {
+      // 第一阶段：只读自旋（指数退避）
+      for (int i = 0; i < spin_count; ++i) {
+        if (!locked_.load(std::memory_order_relaxed)) {
+          // 尝试抢锁
+          if (!locked_.exchange(true, std::memory_order_acquire)) {
+            return;
+          }
+        }
+        cpu_relax();
+      }
+      
+      // 指数退避：翻倍自旋次数，但不超过上限
+      if (spin_count < kMaxSpinCount) {
+        spin_count <<=1;
+      } else {
+        // 达到上限，让出CPU
+        std::this_thread::yield();
+      }
+    }
+  }
 
   static inline void cpu_relax() noexcept {
 #if defined(__x86_64__) || defined(__i386__)

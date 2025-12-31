@@ -211,39 +211,19 @@ void SharedContext::save_stack_buffer(void *stack_sp) {
     return;
   }
 
-  // 优化：只保存实际使用的栈空间，跳过未使用的尾部
-  // 扫描栈的后64字节，如果全为0说明未使用
+  // 直接保存整个有效栈（从sp到stack_top）
+  // 注意：由于StackAllocator已去掉memset清零，栈尾部可能有垃圾数据
+  // 不能通过扫描零字节来判断未使用区域
   size_t len = static_cast<size_t>(stack_top - sp);
-  size_t effective_len = len;
-  
-  // 从后往前扫描，找到最后一个非零块
-  static constexpr size_t kScanBlock = 64;
-  if (len > kScanBlock * 2) {
-    char *end = stack_top - kScanBlock;
-    while (end > sp + kScanBlock) {
-      bool all_zero = true;
-      for (size_t i = 0; i < kScanBlock; ++i) {
-        if (end[i] != 0) {
-          all_zero = false;
-          break;
-        }
-      }
-      if (!all_zero) {
-        break;
-      }
-      end -= kScanBlock;
-      effective_len -= kScanBlock;
-    }
-  }
 
   // 优化：复用缓冲区，仅当需要更大空间时才重新分配
-  if (effective_len > save_buffer_capacity_) {
+  if (len > save_buffer_capacity_) {
     if (save_buffer_) {
       StackAllocator::deallocate(save_buffer_, save_buffer_capacity_);
     }
     // 分配时预留一些空间，减少重复分配
-    size_t new_capacity = effective_len + (effective_len >> 2); // 额夦16字节对齐
-    new_capacity = (new_capacity + 15) & ~15ULL;
+    size_t new_capacity = len + (len >> 2); // 额外25%空间
+    new_capacity = (new_capacity + 15) & ~15ULL; // 16字节对齐
     save_buffer_ = static_cast<char *>(StackAllocator::allocate(new_capacity));
     if (!save_buffer_) {
       ZCOROUTINE_LOG_ERROR(
@@ -255,14 +235,13 @@ void SharedContext::save_stack_buffer(void *stack_sp) {
     save_buffer_capacity_ = new_capacity;
   }
 
-  save_size_ = effective_len;
+  save_size_ = len;
   saved_stack_sp_ = stack_sp; // 记录栈指针位置，用于恢复
 
-  // 优化：使用memcpy复制有效数据
-  memcpy(save_buffer_, sp, effective_len);
+  // 使用memcpy复制栈数据
+  memcpy(save_buffer_, sp, len);
 
-  ZCOROUTINE_LOG_DEBUG("SharedContext::save_stack_buffer: total={}, effective={}, saved={:.1f}%", 
-                       len, effective_len, (effective_len * 100.0 / len));
+  ZCOROUTINE_LOG_DEBUG("SharedContext::save_stack_buffer: size={}", len);
 }
 
 void SharedContext::restore_stack_buffer() {

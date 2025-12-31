@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
   zcoroutine::init_logger(zlog::LogLevel::value::ERROR);
 
   int port = 9000;
-  int threads = 4;
+  int threads = std::thread::hardware_concurrency();
   bool shared_stack = false;
   int duration = 30;
 

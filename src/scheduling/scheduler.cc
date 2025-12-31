@@ -169,6 +169,7 @@ void Scheduler::schedule_loop() {
 
   // 批量处理优化：减少锁竞争
   static constexpr size_t kBatchSize = 8;
+  static constexpr int kWaitTimeoutMs = 100;  // 超时等待100ms
   Task tasks[kBatchSize];
   
   while (true) {
@@ -186,14 +187,18 @@ void Scheduler::schedule_loop() {
       }
     }
     
-    // 如果批量获取失败，阻塞等待一个任务
+    // 如果批量获取失败，带超时等待一个任务
     if (batch_count == 0) {
       Task task;
-      if (!task_queue_->pop(task)) {
-        // 队列已停止
-        ZCOROUTINE_LOG_DEBUG(
-            "Scheduler[{}] task queue stopped, exiting schedule_loop", name_);
-        break;
+      // 使用超时等待，避免永久阻塞导致的频繁唤醒
+      if (!task_queue_->pop(task, kWaitTimeoutMs)) {
+        
+        if (stopping_ && task_queue_->empty()) {
+          ZCOROUTINE_LOG_DEBUG(
+              "Scheduler[{}] task queue stopped, exiting schedule_loop", name_);
+          break;
+        }
+        continue;  
       }
       
       if (!task.is_valid()) {
