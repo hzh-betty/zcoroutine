@@ -20,7 +20,7 @@ enum class AsyncType {
 };
 
 static constexpr size_t FLUSH_BUFFER_SIZE =
-    DEFAULT_BUFFER_SIZE * 0.8; // 刷新缓冲区大小阈值 (提高到 80%)
+    DEFAULT_BUFFER_SIZE / 32; // 刷新缓冲区大小阈值 
 
 /**
  * @brief 异步日志循环器
