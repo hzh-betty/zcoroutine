@@ -1,36 +1,54 @@
 cmake_minimum_required(VERSION 3.18)
 
-# Find GTest
 find_package(GTest REQUIRED)
 
-# Find Benchmark
-find_package(benchmark REQUIRED)
+find_package(benchmark QUIET)
 
-# Find spdlog
-find_package(spdlog REQUIRED)
+find_package(spdlog QUIET)
 
-# Find glog
-find_package(glog REQUIRED)
+find_package(glog QUIET)
 
-# Unit Tests
+# 收集单元测试源文件
 file(GLOB UNIT_TEST_SOURCES "unit/*.cc")
 message(STATUS "Project source dir: ${PROJECT_SOURCE_DIR}")
 foreach(TEST_SRC ${UNIT_TEST_SOURCES})
     get_filename_component(TEST_NAME ${TEST_SRC} NAME_WE)
     add_executable(${TEST_NAME} ${TEST_SRC})
-    target_link_libraries(${TEST_NAME} PRIVATE zlog_static GTest::gtest_main GTest::gmock)
+    target_link_libraries(${TEST_NAME} PRIVATE zlog_static GTest::gtest GTest::gmock Threads::Threads)
     target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
 endforeach()
 
-# Benchmarks
-add_executable(zlog_benchmark bench/bench_main.cc)
-target_link_libraries(zlog_benchmark PRIVATE 
+# 收集集成测试源文件
+file(GLOB INTEGRATION_TEST_SOURCES "integration/*.cc")
+foreach(TEST_SRC ${INTEGRATION_TEST_SOURCES})
+    get_filename_component(TEST_NAME ${TEST_SRC} NAME_WE)
+    add_executable(${TEST_NAME} ${TEST_SRC})
+    target_link_libraries(${TEST_NAME} PRIVATE zlog_static GTest::gtest GTest::gmock Threads::Threads)
+    target_include_directories(${TEST_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/include)
+    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+endforeach()
+
+# 基准测试
+if(benchmark_FOUND AND spdlog_FOUND AND glog_FOUND)
+    add_executable(zlog_benchmark bench/bench_main.cc)
+    target_link_libraries(zlog_benchmark PRIVATE 
+        zlog_static 
+        benchmark::benchmark 
+        benchmark::benchmark_main
+        spdlog::spdlog
+        glog::glog
+        Threads::Threads
+    )
+    target_include_directories(zlog_benchmark PRIVATE ${PROJECT_SOURCE_DIR}/include)
+else()
+    message(STATUS "Skipping zlog_benchmark (requires benchmark, spdlog, glog)")
+endif()
+
+# Perf Benchmark (for perf analysis - always build)
+add_executable(zlog_perf_bench bench/perf_bench.cc)
+target_link_libraries(zlog_perf_bench PRIVATE 
     zlog_static 
-    benchmark::benchmark 
-    benchmark::benchmark_main
-    spdlog::spdlog
-    glog::glog
     Threads::Threads
 )
-target_include_directories(zlog_benchmark PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_include_directories(zlog_perf_bench PRIVATE ${PROJECT_SOURCE_DIR}/include)

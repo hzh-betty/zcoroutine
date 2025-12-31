@@ -4,15 +4,42 @@
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
+#ifdef __linux__
+#include <sys/mman.h>
+#endif
 
 namespace zlog {
 
+// 预热内存：touch所有页面避免首次访问时的page fault
+static void prefaultMemory(char *data, size_t size) {
+  // 获取页面大小，通常为4KB
+  constexpr size_t PAGE_SIZE = 4096;
+  // 按页遍历，触发每页的首次访问
+  volatile char dummy = 0;
+  for (size_t i = 0; i < size; i += PAGE_SIZE) {
+    // 写入触发page fault并分配物理页
+    data[i] = 0;
+    dummy += data[i]; // 防止编译器优化掉写入
+  }
+  // 最后一页
+  if (size > 0) {
+    data[size - 1] = 0;
+  }
+  (void)dummy; // 抑制未使用警告
+}
+
 Buffer::Buffer()
     : data_(static_cast<char *>(std::malloc(DEFAULT_BUFFER_SIZE))),
-      capacity_(DEFAULT_BUFFER_SIZE), writerIdx_(0), readerIdx_(0) {
+      writerIdx_(0), capacity_(DEFAULT_BUFFER_SIZE), readerIdx_(0) {
   if (!data_) {
     throw std::bad_alloc();
   }
+  // 预热内存，避免运行时page fault
+  prefaultMemory(data_, capacity_);
+#ifdef __linux__
+  // 提示内核该内存将被顺序访问
+  madvise(data_, capacity_, MADV_SEQUENTIAL);
+#endif
 }
 
 Buffer::~Buffer() {
@@ -23,8 +50,9 @@ Buffer::~Buffer() {
 
 void Buffer::push(const char *data, size_t len) {
   ensureEnoughSize(len);
-  std::memcpy(data_ + writerIdx_, data, len);
-  moveWriter(len);
+  // 使用编译器内建函数进行更高效的内存拷贝
+  __builtin_memcpy(data_ + writerIdx_, data, len);
+  writerIdx_ += len;
 }
 
 const char *Buffer::begin() const { return data_ + readerIdx_; }
@@ -67,6 +95,15 @@ void Buffer::ensureEnoughSize(size_t len) {
   if (!newData) {
     throw std::bad_alloc();
   }
+  
+  // 预热新分配的内存区域
+  if (newSize > capacity_) {
+    prefaultMemory(newData + capacity_, newSize - capacity_);
+#ifdef __linux__
+    madvise(newData, newSize, MADV_SEQUENTIAL);
+#endif
+  }
+  
   data_ = newData;
   capacity_ = newSize;
 }

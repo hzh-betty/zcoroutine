@@ -100,9 +100,11 @@ private:
   void moveWriter(size_t len);
 
 private:
+  // 调整成员变量顺序以优化缓存局部性
+  // 将热路径访问的变量放在一起
   char *data_;       ///< 缓冲区指针
+  size_t writerIdx_; ///< 当前可写数据的下标 (热路径)
   size_t capacity_;  ///< 缓冲区总容量
-  size_t writerIdx_; ///< 当前可写数据的下标
   size_t readerIdx_; ///< 当前可读数据的下标
 };
 } // namespace zlog

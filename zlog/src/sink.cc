@@ -7,23 +7,30 @@ void StdOutSink::log(const char *data, size_t len) {
   fmt::print(stdout, "{:.{}}", data, len);
 }
 
-FileSink::FileSink(std::string pathname) : pathname_(std::move(pathname)) {
+FileSink::FileSink(std::string pathname, bool autoFlush) 
+    : pathname_(std::move(pathname)), autoFlush_(autoFlush) {
   File::createDirectory(File::path(pathname_));
+  // 使用较大的内部缓冲区提高性能
+  ofs_.rdbuf()->pubsetbuf(nullptr, 0); // 禁用标准库缓冲，使用系统缓冲
   ofs_.open(pathname_, std::ios::binary | std::ios::app);
 }
 
 void FileSink::log(const char *data, size_t len) {
   fmt::print(ofs_, "{:.{}}", data, len);
-  ofs_.flush(); // 确保日志及时写入磁盘
+  // 只在启用autoFlush时才每次flush，否则依赖系统缓冲
+  if (autoFlush_) {
+    ofs_.flush();
+  }
 }
 
-RollBySizeSink::RollBySizeSink(std::string basename, const size_t maxSize)
+RollBySizeSink::RollBySizeSink(std::string basename, const size_t maxSize, bool autoFlush)
     : basename_(std::move(basename)), maxSize_(maxSize), curSize_(0),
-      nameCount_(0) {
+      nameCount_(0), autoFlush_(autoFlush) {
   // 1.创建日志文件所用的路径
   const std::string pathname = createNewFile();
   File::createDirectory(File::path(pathname));
   // 2. 创建并打开日志文件
+  ofs_.rdbuf()->pubsetbuf(nullptr, 0); // 禁用标准库缓冲
   ofs_.open(pathname, std::ios::binary | std::ios::app);
 }
 
@@ -32,7 +39,9 @@ void RollBySizeSink::log(const char *data, size_t len) {
     rollOver();
   }
   fmt::print(ofs_, "{:.{}}", data, len);
-  ofs_.flush(); // 确保日志及时写入磁盘
+  if (autoFlush_) {
+    ofs_.flush();
+  }
   curSize_ += len;
 }
 

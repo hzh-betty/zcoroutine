@@ -57,3 +57,8 @@ TEST_F(LoggerTest, LevelFilter) {
   logger.logImpl(LogLevel::value::ERROR, __FILE__, __LINE__,
                  "should be logged");
 }
+
+int main(int argc, char** argv) {
+  ::testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}

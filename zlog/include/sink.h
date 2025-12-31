@@ -53,14 +53,16 @@ public:
   /**
    * @brief 构造函数
    * @param pathname 文件路径
+   * @param autoFlush 是否每次写入后自动flush，默认false以提高性能
    */
-  explicit FileSink(std::string pathname);
+  explicit FileSink(std::string pathname, bool autoFlush = false);
 
   void log(const char *data, size_t len) override;
 
 protected:
   std::string pathname_; ///< 文件路径
   std::ofstream ofs_;    ///< 输出文件流
+  bool autoFlush_;       ///< 是否自动flush
 };
 
 /**
@@ -73,8 +75,9 @@ public:
    * @brief 构造函数
    * @param basename 文件基础名称
    * @param maxSize 最大文件大小（字节）
+   * @param autoFlush 是否每次写入后自动flush，默认false
    */
-  RollBySizeSink(std::string basename, size_t maxSize);
+  RollBySizeSink(std::string basename, size_t maxSize, bool autoFlush = false);
 
   void log(const char *data, size_t len) override;
 
@@ -96,6 +99,7 @@ protected:
   size_t maxSize_;       ///< 最大文件大小
   size_t curSize_;       ///< 当前文件大小
   size_t nameCount_;     ///< 文件名计数器
+  bool autoFlush_;       ///< 是否自动flush
 };
 
 /**

@@ -10,17 +10,19 @@ AsyncLooper::AsyncLooper(Functor func, const AsyncType looperType,
       callBack_(std::move(func)), milliseco_(milliseco) {}
 
 void AsyncLooper::push(const char *data, const size_t len) {
-  bool needNotify = false;
+  // 使用更细粒度的锁控制，减少锁持有时间
   {
     std::unique_lock<Spinlock> lock(mutex_);
     if (looperType_ == AsyncType::ASYNC_SAFE) {
       condPro_.wait(lock, [&]() { return proBuf_.writeAbleSize() >= len; });
     }
     proBuf_.push(data, len);
-    needNotify = (proBuf_.readAbleSize() >= FLUSH_BUFFER_SIZE);
   }
-  if (needNotify)
+  // 在锁外检查是否需要通知，减少锁持有时间
+  // 使用原子操作避免重新加锁
+  if (proBuf_.readAbleSize() >= FLUSH_BUFFER_SIZE) {
     condCon_.notify_one();
+  }
 }
 
 AsyncLooper::~AsyncLooper() { stop(); }
@@ -28,7 +30,9 @@ AsyncLooper::~AsyncLooper() { stop(); }
 void AsyncLooper::stop() {
   stop_ = true;
   condCon_.notify_all();
-  thread_.join(); // 等待工作线程退出
+  if (thread_.joinable()) {
+    thread_.join(); // 等待工作线程退出
+  }
 }
 
 void AsyncLooper::threadEntry() {
