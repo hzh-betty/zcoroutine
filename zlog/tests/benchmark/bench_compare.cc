@@ -1,9 +1,14 @@
 
 #include "logger.h"
 
-#include <benchmark/benchmark.h>
+#include <atomic>
+#include <chrono>
+#include <iomanip>
+#include <iostream>
 #include <memory>
 #include <string>
+#include <thread>
+#include <vector>
 
 #include <dirent.h>
 #include <sys/stat.h>
@@ -57,218 +62,306 @@ void cleanup_log_dir() { remove_directory("bench_logs"); }
 // 生成指定长度的日志内容
 std::string make_string(size_t len) { return std::string(len, 'x'); }
 
-// Zlog 同步模式
-static void BM_Zlog_Sync(benchmark::State &state) {
+// 测试结果结构体
+struct BenchmarkResult {
+  std::string logger_type; // 日志类型
+  int thread_count;        // 线程数
+  size_t message_size;     // 每条日志字节数
+  size_t total_messages;   // 输出日志数量
+  double duration;         // 耗时（秒）
+  double throughput_mbps;  // 吞吐量（MB/s）
+};
+
+// 全局结果容器
+std::vector<BenchmarkResult> g_results;
+
+// 固定时长测试（3秒）
+template <typename LogFunc>
+BenchmarkResult run_timed_benchmark(const std::string &logger_type,
+                                    int thread_count, size_t message_size,
+                                    LogFunc log_func) {
+  const auto test_duration = std::chrono::seconds(3);
+  std::atomic<size_t> total_messages{0};
+  std::atomic<bool> stop_flag{false};
+
+  std::vector<std::thread> threads;
+  auto start_time = std::chrono::steady_clock::now();
+
+  // 启动测试线程
+  for (int i = 0; i < thread_count; ++i) {
+    threads.emplace_back([&, i]() {
+      size_t local_count = 0;
+      while (!stop_flag.load(std::memory_order_relaxed)) {
+        log_func(i);
+        ++local_count;
+      }
+      total_messages.fetch_add(local_count, std::memory_order_relaxed);
+    });
+  }
+
+  // 等待3秒
+  std::this_thread::sleep_for(test_duration);
+  stop_flag.store(true, std::memory_order_relaxed);
+
+  // 等待所有线程结束
+  for (auto &t : threads) {
+    t.join();
+  }
+
+  auto end_time = std::chrono::steady_clock::now();
+  double duration =
+      std::chrono::duration<double>(end_time - start_time).count();
+
+  size_t total = total_messages.load();
+  double total_bytes = static_cast<double>(total * message_size);
+  double throughput_mbps = (total_bytes / (1024.0 * 1024.0)) / duration;
+
+  return BenchmarkResult{logger_type, thread_count, message_size,
+                         total,       duration,     throughput_mbps};
+}
+
+static const std::string kBenchPattern = "%m";
+
+// Zlog 同步模式测试
+void test_zlog_sync(int thread_count, size_t message_size) {
   prepare_log_dir();
-  auto formatter = std::make_shared<zlog::Formatter>();
+
+  auto formatter = std::make_shared<zlog::Formatter>(kBenchPattern);
   std::vector<zlog::LogSink::ptr> sinks;
-  std::string filename =
-      "bench_logs/zlog_sync_" + std::to_string(state.thread_index()) + ".log";
-  sinks.push_back(std::make_shared<zlog::FileSink>(filename));
-  // 使用 SyncLogger 配合 FileSink
-  zlog::SyncLogger logger("bench_sync", zlog::LogLevel::value::INFO, formatter,
-                          sinks);
+  sinks.push_back(std::make_shared<zlog::FileSink>("bench_logs/zlog_sync.log"));
 
-  std::string msg = make_string(state.range(0));
+  // 所有线程共用一个 logger
+  auto logger = std::make_shared<zlog::SyncLogger>(
+      "bench_sync", zlog::LogLevel::value::INFO, formatter, sinks);
 
-  for (auto _ : state) {
-    logger.logImpl(zlog::LogLevel::value::INFO, __FILE__, __LINE__,
-                   msg.c_str());
-  }
+  std::string msg = make_string(message_size);
 
-  // 每个测试用例执行完后清理
-  if (state.thread_index() == 0) {
-    cleanup_log_dir();
-  }
+  auto result = run_timed_benchmark(
+      "Zlog-Sync", thread_count, message_size, [&](int thread_id) {
+        (void)thread_id;
+        logger->logImpl(zlog::LogLevel::value::INFO, "", 0, msg.c_str());
+      });
+
+  g_results.push_back(result);
+  cleanup_log_dir();
+  std::this_thread::sleep_for(std::chrono::seconds(1));
 }
 
-// Zlog 异步模式 (ASYNC_SAFE)
-static void BM_Zlog_Async(benchmark::State &state) {
+// Zlog 异步模式 (ASYNC_SAFE) 测试
+void test_zlog_async_safe(int thread_count, size_t message_size) {
   prepare_log_dir();
-  auto formatter = std::make_shared<zlog::Formatter>();
+
+  auto formatter = std::make_shared<zlog::Formatter>(kBenchPattern);
   std::vector<zlog::LogSink::ptr> sinks;
+  sinks.push_back(
+      std::make_shared<zlog::FileSink>("bench_logs/zlog_async_safe.log"));
 
-  // 每个线程使用独立文件，公平对比
-  std::string filename =
-      "bench_logs/zlog_async_" + std::to_string(state.thread_index()) + ".log";
-  sinks.push_back(std::make_shared<zlog::FileSink>(filename));
+  // 所有线程共用一个 logger
+  auto logger = std::make_shared<zlog::AsyncLogger>(
+      "bench_async_safe", zlog::LogLevel::value::INFO, formatter, sinks,
+      zlog::AsyncType::ASYNC_SAFE, std::chrono::milliseconds(100));
 
-  // 每个线程使用独立的 Logger
-  thread_local std::shared_ptr<zlog::AsyncLogger> logger;
-  if (!logger) {
-    logger = std::make_shared<zlog::AsyncLogger>(
-        "bench_async", zlog::LogLevel::value::INFO, formatter, sinks,
-        zlog::AsyncType::ASYNC_SAFE, std::chrono::milliseconds(100));
-  }
+  std::string msg = make_string(message_size);
 
-  std::string msg = make_string(state.range(0));
+  auto result = run_timed_benchmark(
+      "Zlog-Async-Safe", thread_count, message_size, [&](int thread_id) {
+        (void)thread_id;
+        logger->logImpl(zlog::LogLevel::value::INFO, "", 0, msg.c_str());
+      });
 
-  for (auto _ : state) {
-    logger->logImpl(zlog::LogLevel::value::INFO, __FILE__, __LINE__,
-                    msg.c_str());
-  }
-
-  // 每个测试用例执行完后清理
-  if (state.thread_index() == 0) {
-    // 等待异步日志写入完成
-    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-    cleanup_log_dir();
-  }
+  g_results.push_back(result);
+  logger.reset();
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  cleanup_log_dir();
+  std::this_thread::sleep_for(std::chrono::seconds(1));
 }
 
-// Zlog 异步模式 (ASYNC_UNSAFE)
-static void BM_Zlog_Async_Unsafe(benchmark::State &state) {
+// Zlog 异步模式 (ASYNC_UNSAFE) 测试
+void test_zlog_async_unsafe(int thread_count, size_t message_size) {
   prepare_log_dir();
-  auto formatter = std::make_shared<zlog::Formatter>();
+
+  auto formatter = std::make_shared<zlog::Formatter>(kBenchPattern);
   std::vector<zlog::LogSink::ptr> sinks;
+  sinks.push_back(
+      std::make_shared<zlog::FileSink>("bench_logs/zlog_async_unsafe.log"));
 
-  // 每个线程使用独立文件，公平对比
-  std::string filename = "bench_logs/zlog_async_unsafe_" +
-                         std::to_string(state.thread_index()) + ".log";
-  sinks.push_back(std::make_shared<zlog::FileSink>(filename));
+  // 所有线程共用一个 logger
+  auto logger = std::make_shared<zlog::AsyncLogger>(
+      "bench_async_unsafe", zlog::LogLevel::value::INFO, formatter, sinks,
+      zlog::AsyncType::ASYNC_UNSAFE, std::chrono::milliseconds(100));
 
-  // 每个线程使用独立的 Logger
-  thread_local std::shared_ptr<zlog::AsyncLogger> logger;
-  if (!logger) {
-    logger = std::make_shared<zlog::AsyncLogger>(
-        "bench_async_unsafe", zlog::LogLevel::value::INFO, formatter, sinks,
-        zlog::AsyncType::ASYNC_UNSAFE, std::chrono::milliseconds(100));
-  }
+  std::string msg = make_string(message_size);
 
-  std::string msg = make_string(state.range(0));
+  auto result = run_timed_benchmark(
+      "Zlog-Async-Unsafe", thread_count, message_size, [&](int thread_id) {
+        (void)thread_id;
+        logger->logImpl(zlog::LogLevel::value::INFO, "", 0, msg.c_str());
+      });
 
-  for (auto _ : state) {
-    logger->logImpl(zlog::LogLevel::value::INFO, __FILE__, __LINE__,
-                    msg.c_str());
-  }
-
-  // 每个测试用例执行完后清理
-  if (state.thread_index() == 0) {
-    // 等待异步日志写入完成
-    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-    spdlog::drop_all(); // 关闭所有logger
-    cleanup_log_dir();
-  }
+  g_results.push_back(result);
+  logger.reset();
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  cleanup_log_dir();
+  std::this_thread::sleep_for(std::chrono::seconds(1));
 }
 
-// Spdlog 异步模式
-static void BM_Spdlog_Sync(benchmark::State &state) {
+// Spdlog 同步模式测试
+void test_spdlog_sync(int thread_count, size_t message_size) {
   prepare_log_dir();
-  std::string filename =
-      "bench_logs/spdlog_sync_" + std::to_string(state.thread_index()) + ".log";
 
-  // 每个线程使用独立的 Logger 和文件，避免文件锁竞争，专注于测试同步写磁盘性能
-  auto name = "bench_spd_sync_" + std::to_string(state.thread_index());
-  auto logger = spdlog::get(name);
-  if (!logger) {
-    try {
-      logger = spdlog::basic_logger_mt(name, filename, true);
-    } catch (...) {
-      logger = spdlog::get(name);
-    }
-  }
-  logger->set_pattern("%+");
-  std::string msg = make_string(state.range(0));
-
-  for (auto _ : state) {
-    logger->info(msg);
+  // 所有线程共用一个 logger
+  std::shared_ptr<spdlog::logger> logger;
+  try {
+    logger = spdlog::basic_logger_mt("bench_spd_sync",
+                                     "bench_logs/spdlog_sync.log", true);
+    logger->set_pattern("%v");
+  } catch (...) {
+    logger = spdlog::get("bench_spd_sync");
   }
 
-  // 每个测试用例执行完后清理
-  if (state.thread_index() == 0) {
-    spdlog::drop_all(); // 关闭所有logger
-    cleanup_log_dir();
-  }
+  std::string msg = make_string(message_size);
+
+  auto result = run_timed_benchmark("Spdlog-Sync", thread_count, message_size,
+                                    [&](int thread_id) {
+                                      (void)thread_id;
+                                      logger->info(msg);
+                                    });
+
+  g_results.push_back(result);
+  spdlog::drop_all();
+  cleanup_log_dir();
+  std::this_thread::sleep_for(std::chrono::seconds(1));
 }
 
-// Spdlog 异步模式
-static void BM_Spdlog_Async(benchmark::State &state) {
+// Spdlog 异步模式测试
+void test_spdlog_async(int thread_count, size_t message_size) {
   prepare_log_dir();
+
   static std::once_flag pool_flag;
   std::call_once(pool_flag, []() { spdlog::init_thread_pool(8192, 1); });
 
-  // 每个线程使用独立文件，公平对比
-  std::string filename = "bench_logs/spdlog_async_" +
-                         std::to_string(state.thread_index()) + ".log";
-  auto name = "bench_spd_async_" + std::to_string(state.thread_index());
-
-  auto logger = spdlog::get(name);
-  if (!logger) {
-    try {
-      logger =
-          spdlog::basic_logger_mt<spdlog::async_factory>(name, filename, true);
-      logger->set_pattern("%+");
-    } catch (...) {
-      logger = spdlog::get(name);
-    }
+  // 所有线程共用一个 logger
+  std::shared_ptr<spdlog::logger> logger;
+  try {
+    logger = spdlog::basic_logger_mt<spdlog::async_factory>(
+        "bench_spd_async", "bench_logs/spdlog_async.log", true);
+    logger->set_pattern("%v");
+  } catch (...) {
+    logger = spdlog::get("bench_spd_async");
   }
 
-  std::string msg = make_string(state.range(0));
+  std::string msg = make_string(message_size);
 
-  for (auto _ : state) {
-    logger->info(msg);
-  }
+  auto result = run_timed_benchmark("Spdlog-Async", thread_count, message_size,
+                                    [&](int thread_id) {
+                                      (void)thread_id;
+                                      logger->info(msg);
+                                    });
 
-  // 每个测试用例执行完后清理
-  if (state.thread_index() == 0) {
-    // 等待异步日志写入完成
-    std::this_thread::sleep_for(std::chrono::milliseconds(2000));
-    cleanup_log_dir();
-  }
+  g_results.push_back(result);
+  spdlog::drop_all();
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  cleanup_log_dir();
+  std::this_thread::sleep_for(std::chrono::seconds(1));
 }
 
-// Glog (仅支持同步写文件)
-static void BM_Glog(benchmark::State &state) {
+// Glog 同步模式测试 (仅支持同步)
+void test_glog(int thread_count, size_t message_size) {
   prepare_log_dir();
-  if (state.thread_index() == 0) {
-    static bool glog_init = false;
-    if (!glog_init) {
-      google::InitGoogleLogging("bench_glog");
-      FLAGS_logtostderr = 0;        // 不输出到 stderr
-      FLAGS_alsologtostderr = 0;    // 不同时输出到 stderr
-      FLAGS_log_dir = "bench_logs"; // 输出目录
-      glog_init = true;
+
+  static bool glog_init = false;
+  if (!glog_init) {
+    google::InitGoogleLogging("bench_glog");
+    FLAGS_logtostderr = 0;
+    FLAGS_alsologtostderr = 0;
+    FLAGS_log_dir = "bench_logs";
+    glog_init = true;
+  }
+
+  std::string msg = make_string(message_size);
+
+  auto result = run_timed_benchmark("Glog-Sync", thread_count, message_size,
+                                    [&](int thread_id) { LOG(INFO) << msg; });
+
+  g_results.push_back(result);
+  google::FlushLogFiles(google::INFO);
+  cleanup_log_dir();
+  std::this_thread::sleep_for(std::chrono::seconds(1));
+}
+
+// 打印结果表格
+void print_results() {
+  std::cout << "\n"
+            << "========================================="
+               "=========================================="
+               "===================\n";
+  std::cout << std::left << std::setw(22) << "Logger Type" << std::setw(10)
+            << "Threads" << std::setw(18) << "Total Messages" << std::setw(15)
+            << "Msg Size(B)" << std::setw(15) << "Duration(s)" << std::setw(18)
+            << "Throughput(MB/s)" << "\n";
+  std::cout << "========================================="
+               "=========================================="
+               "===================\n";
+
+  for (const auto &r : g_results) {
+    std::cout << std::left << std::setw(22) << r.logger_type << std::setw(10)
+              << r.thread_count << std::setw(18) << r.total_messages
+              << std::setw(15) << r.message_size << std::setw(15) << std::fixed
+              << std::setprecision(2) << r.duration << std::setw(18)
+              << std::fixed << std::setprecision(2) << r.throughput_mbps
+              << "\n";
+  }
+
+  std::cout << "========================================="
+               "=========================================="
+               "===================\n";
+}
+
+int main() {
+  std::cout << "Starting performance benchmark...\n";
+  std::cout << "Each test runs for 3 seconds\n";
+  std::cout << "Thread counts: 1, 2, 4, 8, 16\n";
+  std::cout << "Message sizes: 32, 64, 128, 256, 512 bytes\n\n";
+
+  const std::vector<int> thread_counts = {1, 2, 4, 8, 16};
+  const std::vector<size_t> message_sizes = {32, 64, 128, 256, 512};
+
+  // 测试所有组合
+  for (int threads : thread_counts) {
+    for (size_t msg_size : message_sizes) {
+      std::cout << "[" << threads << " threads, " << msg_size << " bytes] ";
+
+      // Zlog 同步
+      std::cout << "Zlog-Sync...";
+      test_zlog_sync(threads, msg_size);
+
+      // Zlog 异步 Safe
+      std::cout << " Zlog-Async-Safe...";
+      test_zlog_async_safe(threads, msg_size);
+
+      // Zlog 异步 Unsafe
+      std::cout << " Zlog-Async-Unsafe...";
+      test_zlog_async_unsafe(threads, msg_size);
+
+      // Spdlog 同步
+      std::cout << " Spdlog-Sync...";
+      test_spdlog_sync(threads, msg_size);
+
+      // Spdlog 异步
+      std::cout << " Spdlog-Async...";
+      test_spdlog_async(threads, msg_size);
+
+      // Glog
+      std::cout << " Glog-Sync...";
+      test_glog(threads, msg_size);
+
+      std::cout << " Done\n";
     }
   }
 
-  std::string msg = make_string(state.range(0));
+  // 打印结果表格
+  print_results();
 
-  for (auto _ : state) {
-    LOG(INFO) << msg;
-  }
-
-  // 每个测试用例执行完后清理
-  if (state.thread_index() == 0) {
-    google::FlushLogFiles(google::INFO); // 刷新日志
-    cleanup_log_dir();
-  }
+  std::cout << "\nBenchmark completed!\n";
+  return 0;
 }
-
-// 注册基准测试
-// 线程数: 1, 16
-// 负载范围: 8, 4096 字节
-// 使用 RangeMultiplier(512) 减少测试点，聚焦于小包和大包
-
-BENCHMARK(BM_Zlog_Sync)
-    ->RangeMultiplier(512)
-    ->Range(8, 4096)
-    ->ThreadRange(1, 16);
-BENCHMARK(BM_Zlog_Async)
-    ->RangeMultiplier(512)
-    ->Range(8, 4096)
-    ->ThreadRange(1, 16);
-BENCHMARK(BM_Zlog_Async_Unsafe)
-    ->RangeMultiplier(512)
-    ->Range(8, 4096)
-    ->ThreadRange(1, 16);
-BENCHMARK(BM_Spdlog_Sync)
-    ->RangeMultiplier(512)
-    ->Range(8, 4096)
-    ->ThreadRange(1, 16);
-BENCHMARK(BM_Spdlog_Async)
-    ->RangeMultiplier(512)
-    ->Range(8, 4096)
-    ->ThreadRange(1, 16);
-BENCHMARK(BM_Glog)->RangeMultiplier(512)->Range(8, 4096)->ThreadRange(1, 16);
-
-BENCHMARK_MAIN();

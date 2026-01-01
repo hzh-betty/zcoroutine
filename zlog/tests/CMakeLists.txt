@@ -30,19 +30,17 @@ foreach(TEST_SRC ${INTEGRATION_TEST_SOURCES})
 endforeach()
 
 # 基准测试
-if(benchmark_FOUND AND spdlog_FOUND AND glog_FOUND)
+if(spdlog_FOUND AND glog_FOUND)
     add_executable(zlog_benchmark benchmark/bench_compare.cc)
     target_link_libraries(zlog_benchmark PRIVATE 
         zlog_static 
-        benchmark::benchmark 
-        benchmark::benchmark_main
         spdlog::spdlog
         glog::glog
         Threads::Threads
     )
     target_include_directories(zlog_benchmark PRIVATE ${PROJECT_SOURCE_DIR}/include)
 else()
-    message(STATUS "Skipping zlog_benchmark (requires benchmark, spdlog, glog)")
+    message(STATUS "Skipping zlog_benchmark (requires spdlog, glog)")
 endif()
 
 # 性能测试

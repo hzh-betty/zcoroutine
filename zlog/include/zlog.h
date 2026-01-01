@@ -20,17 +20,11 @@ inline Logger::ptr rootLogger() {
 }
 
 // 2. 通过宏函数对日志器的接口进行代理
-#define ZLOG_DEBUG(fmt, ...)                                                   \
-  logImpl(zlog::LogLevel::value::DEBUG, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
-#define ZLOG_INFO(fmt, ...)                                                    \
-  logImpl(zlog::LogLevel::value::INFO, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
-#define ZLOG_WARN(fmt, ...)                                                    \
-  logImpl(zlog::LogLevel::value::WARNING, __FILE__, __LINE__, fmt,             \
-          ##__VA_ARGS__)
-#define ZLOG_ERROR(fmt, ...)                                                   \
-  logImpl(zlog::LogLevel::value::ERROR, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
-#define ZLOG_FATAL(fmt, ...)                                                   \
-  logImpl(zlog::LogLevel::value::FATAL, __FILE__, __LINE__, fmt, ##__VA_ARGS__)
+#define ZLOG_DEBUG(fmt, ...) debug(__FILE__, __LINE__, fmt, ##__VA_ARGS__)
+#define ZLOG_INFO(fmt, ...) info(__FILE__, __LINE__, fmt, ##__VA_ARGS__)
+#define ZLOG_WARN(fmt, ...) warning(__FILE__, __LINE__, fmt, ##__VA_ARGS__)
+#define ZLOG_ERROR(fmt, ...) error(__FILE__, __LINE__, fmt, ##__VA_ARGS__)
+#define ZLOG_FATAL(fmt, ...) fatal(__FILE__, __LINE__, fmt, ##__VA_ARGS__)
 
 // 3. 提供宏函数，直接通过默认日志器打印
 #define DEBUG(fmt, ...) zlog::rootLogger()->ZLOG_DEBUG(fmt, ##__VA_ARGS__)

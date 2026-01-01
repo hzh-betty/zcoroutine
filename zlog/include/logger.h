@@ -59,6 +59,51 @@ public:
     logImplHelper(level, file, line, fmt, std::forward<Args>(args)...);
   }
 
+  /**
+   * @brief 记录 DEBUG 级别日志
+   */
+  template <typename... Args>
+  void debug(const char *file, size_t line, const char *fmt, Args &&...args) {
+    logImpl(LogLevel::value::DEBUG, file, line, fmt,
+            std::forward<Args>(args)...);
+  }
+
+  /**
+   * @brief 记录 INFO 级别日志
+   */
+  template <typename... Args>
+  void info(const char *file, size_t line, const char *fmt, Args &&...args) {
+    logImpl(LogLevel::value::INFO, file, line, fmt,
+            std::forward<Args>(args)...);
+  }
+
+  /**
+   * @brief 记录 WARNING 级别日志
+   */
+  template <typename... Args>
+  void warning(const char *file, size_t line, const char *fmt, Args &&...args) {
+    logImpl(LogLevel::value::WARNING, file, line, fmt,
+            std::forward<Args>(args)...);
+  }
+
+  /**
+   * @brief 记录 ERROR 级别日志
+   */
+  template <typename... Args>
+  void error(const char *file, size_t line, const char *fmt, Args &&...args) {
+    logImpl(LogLevel::value::ERROR, file, line, fmt,
+            std::forward<Args>(args)...);
+  }
+
+  /**
+   * @brief 记录 FATAL 级别日志
+   */
+  template <typename... Args>
+  void fatal(const char *file, size_t line, const char *fmt, Args &&...args) {
+    logImpl(LogLevel::value::FATAL, file, line, fmt,
+            std::forward<Args>(args)...);
+  }
+
 protected:
   /**
    * @brief 日志记录辅助函数
