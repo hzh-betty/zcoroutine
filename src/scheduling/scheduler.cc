@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "runtime/fiber_pool.h"
 #include "util/thread_context.h"
 #include "util/zcoroutine_logger.h"
 
@@ -251,6 +252,19 @@ void Scheduler::schedule_loop() {
         if (fiber->state() == Fiber::State::kTerminated) {
           ZCOROUTINE_LOG_DEBUG("Scheduler[{}] fiber terminated: name={}, id={}",
                                name_, fiber->name(), fiber->id());
+
+          // 尝试归还协程到池中
+          bool returned = FiberPool::get_instance().return_fiber(fiber);
+          if (returned) {
+            ZCOROUTINE_LOG_DEBUG("Scheduler[{}] fiber returned to pool: "
+                                 "name={}, id={}, pool_size={}",
+                                 name_, fiber->name(), fiber->id(),
+                                 FiberPool::get_instance().size());
+          } else {
+            ZCOROUTINE_LOG_DEBUG("Scheduler[{}] fiber not returned to pool "
+                                 "(pool full or invalid): name={}, id={}",
+                                 name_, fiber->name(), fiber->id());
+          }
         }
         // 如果协程挂起，说明在等待外部事件（IO、定时器等）
         else if (fiber->state() == Fiber::State::kSuspended) {
