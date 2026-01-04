@@ -69,7 +69,7 @@ void accept_connection() {
 
     auto fiber =
         std::make_shared<Fiber>([client_fd]() { handle_client(client_fd); });
-    g_io_scheduler->schedule(fiber);
+    g_io_scheduler->schedule(std::move(fiber));
   }
   register_accept();
 }

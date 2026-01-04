@@ -102,7 +102,20 @@ void Scheduler::stop() {
   ZCOROUTINE_LOG_INFO("Scheduler[{}] stopped successfully", name_);
 }
 
-void Scheduler::schedule(Fiber::ptr fiber) {
+void Scheduler::schedule(const Fiber::ptr &fiber) {
+  if (!fiber) {
+    ZCOROUTINE_LOG_WARN("Scheduler[{}]::schedule received null fiber", name_);
+    return;
+  }
+
+  ZCOROUTINE_LOG_DEBUG(
+      "Scheduler[{}] scheduled fiber name={}, id={}, queue_size={}", name_,
+      fiber->name(), fiber->id(), task_queue_->size());
+
+  task_queue_->push(Task(fiber));
+}
+
+void Scheduler::schedule(Fiber::ptr &&fiber) {
   if (!fiber) {
     ZCOROUTINE_LOG_WARN("Scheduler[{}]::schedule received null fiber", name_);
     return;

@@ -108,7 +108,7 @@ int FdContext::cancel_event(Event event) {
                          fd_, event_to_string(event), fiber->id());
     Scheduler *scheduler = Scheduler::get_this();
     if (scheduler) {
-      scheduler->schedule(fiber);
+      scheduler->schedule(std::move(fiber));
     } else {
       ZCOROUTINE_LOG_WARN(
           "FdContext::cancel_event no scheduler available: fd={}, event={}",
@@ -182,7 +182,7 @@ void FdContext::cancel_all() {
         "FdContext::cancel_all scheduling READ fiber: fd={}, fiber_id={}", fd_,
         read_fiber->id());
     if (scheduler) {
-      scheduler->schedule(read_fiber);
+      scheduler->schedule(std::move(read_fiber));
     } else {
       ZCOROUTINE_LOG_WARN(
           "FdContext::cancel_all no scheduler for READ fiber: fd={}", fd_);
@@ -198,7 +198,7 @@ void FdContext::cancel_all() {
         "FdContext::cancel_all scheduling WRITE fiber: fd={}, fiber_id={}", fd_,
         write_fiber->id());
     if (scheduler) {
-      scheduler->schedule(write_fiber);
+      scheduler->schedule(std::move(write_fiber));
     } else {
       ZCOROUTINE_LOG_WARN(
           "FdContext::cancel_all no scheduler for WRITE fiber: fd={}", fd_);
@@ -247,7 +247,7 @@ void FdContext::trigger_event(Event event) {
                          fd_, event_to_string(event), fiber->id());
     Scheduler *scheduler = Scheduler::get_this();
     if (scheduler) {
-      scheduler->schedule(fiber);
+      scheduler->schedule(std::move(fiber));
     } else {
       ZCOROUTINE_LOG_WARN(
           "FdContext::trigger_event no scheduler available: fd={}, event={}",

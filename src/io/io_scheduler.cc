@@ -124,8 +124,6 @@ int IoScheduler::add_event(int fd, FdContext::Event event,
   } else {
     // 如果没有回调，使用当前协程
     auto current_fiber = Fiber::get_this();
-    // Fiber::get_this()
-    // 会自动创建主协程，所以理论上不会为空，除非内存分配失败(抛出异常)
     event_ctx.fiber = current_fiber;
   }
 
@@ -260,7 +258,6 @@ Timer::ptr IoScheduler::add_timer(uint64_t timeout,
                                   bool recurring) {
   ZCOROUTINE_LOG_DEBUG("IoScheduler::add_timer timeout={}ms, recurring={}",
                        timeout, recurring);
-  // 直接调用 TimerManager，它会通过回调自动唤醒IO线程
   return timer_manager_->add_timer(timeout, std::move(callback), recurring);
 }
 
@@ -305,12 +302,12 @@ void IoScheduler::trigger_event(int fd, FdContext::Event event) {
     ZCOROUTINE_LOG_DEBUG(
         "IoScheduler::trigger_event executing callback: fd={}, event={}", fd,
         FdContext::event_to_string(event));
-    callback();
+    schedule(std::move(callback));
   } else if (fiber) {
     ZCOROUTINE_LOG_DEBUG("IoScheduler::trigger_event scheduling fiber: fd={}, "
                          "event={}, fiber_id={}",
                          fd, FdContext::event_to_string(event), fiber->id());
-    schedule(fiber);
+    schedule(std::move(fiber));
   } else {
     ZCOROUTINE_LOG_WARN(
         "IoScheduler::trigger_event no callback or fiber: fd={}, event={}", fd,

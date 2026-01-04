@@ -80,7 +80,7 @@ TEST_F(FiberPoolIntegrationTest, HighConcurrencyReuse) {
       completed.fetch_add(1, std::memory_order_relaxed);
     });
 
-    scheduler_->schedule(fiber);
+    scheduler_->schedule(std::move(fiber));
   }
 
   // Wait for completion
@@ -110,7 +110,7 @@ TEST_F(FiberPoolIntegrationTest, MixedFiberTypes) {
     auto fiber = pool.get_fiber([&pool_fiber_count]() {
       pool_fiber_count.fetch_add(1, std::memory_order_relaxed);
     });
-    scheduler_->schedule(fiber);
+    scheduler_->schedule(std::move(fiber));
   }
 
   // 调度直接创建的协程
@@ -118,7 +118,7 @@ TEST_F(FiberPoolIntegrationTest, MixedFiberTypes) {
     auto fiber = std::make_shared<Fiber>([&direct_fiber_count]() {
       direct_fiber_count.fetch_add(1, std::memory_order_relaxed);
     });
-    scheduler_->schedule(fiber);
+    scheduler_->schedule(std::move(fiber));
   }
 
   // Wait for completion
@@ -253,7 +253,7 @@ TEST_F(FiberPoolIntegrationTest, PerformanceComparison) {
     scheduler_->schedule(fiber);
   }
 
-  // Wait for completion
+  // 等待完成
   while (direct_counter.load() < task_count) {
     std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
@@ -312,7 +312,7 @@ TEST_F(FiberPoolIntegrationTest, MultipleSchedulers) {
 }
 
 int main(int argc, char **argv) {
-  // Initialize logger
+  // 初始化日志
   zcoroutine::init_logger(zlog::LogLevel::value::INFO);
 
   ::testing::InitGoogleTest(&argc, argv);

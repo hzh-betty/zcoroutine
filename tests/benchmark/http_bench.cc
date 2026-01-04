@@ -16,14 +16,12 @@
 #include "runtime/fiber.h"
 #include "runtime/shared_stack.h"
 #include "scheduling/scheduler.h"
-#include "timer/timer_manager.h"
 #include "util/zcoroutine_logger.h"
 
 #include <atomic>
 #include <chrono>
 #include <cstring>
 #include <fcntl.h>
-#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <netinet/in.h>
@@ -34,7 +32,6 @@
 #include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
-#include <vector>
 
 using namespace zcoroutine;
 
@@ -187,7 +184,7 @@ void accept_connection() {
   if (g_io_scheduler) {
     Fiber::ptr client_fiber = std::make_shared<Fiber>(
         [client_fd]() { handle_client_fiber(client_fd); });
-    g_io_scheduler->schedule(client_fiber);
+    g_io_scheduler->schedule(std::move(client_fiber));
   }
 
   register_accept_event();

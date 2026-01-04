@@ -26,6 +26,22 @@ struct Task {
 
   explicit Task(std::function<void()> cb) : callback(std::move(cb)) {}
 
+  // 移动构造函数
+  Task(Task &&other) noexcept
+      : fiber(std::move(other.fiber)), callback(std::move(other.callback)) {}
+
+  // 移动赋值运算符
+  Task &operator=(Task &&other) noexcept {
+    if (this != &other) {
+      fiber = std::move(other.fiber);
+      callback = std::move(other.callback);
+    }
+    return *this;
+  }
+
+  Task(const Task &) = default;
+  Task &operator=(const Task &) = default;
+
   /**
    * @brief 重置任务
    */

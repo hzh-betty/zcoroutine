@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 #include "runtime/fiber.h"
@@ -54,21 +55,30 @@ public:
   void stop();
 
   /**
-   * @brief 调度协程
+   * @brief 调度协程（拷贝版本）
    * @param fiber 协程指针
    */
-  void schedule(Fiber::ptr fiber);
+  void schedule(const Fiber::ptr &fiber);
+
+  /**
+   * @brief 调度协程（移动版本，性能优化）
+   * @param fiber 协程指针（右值引用）
+   */
+  void schedule(Fiber::ptr &&fiber);
 
   /**
    * @brief 模板方法：调度可调用对象
    * @tparam F 函数类型
    * @tparam Args 参数类型
+   * @note 使用 SFINAE 排除 Fiber::ptr 类型，避免与 schedule(Fiber::ptr) 冲突
    */
-  template <class F, class... Args> void schedule(F &&f, Args &&...args) {
+  template <class F, class... Args,
+            typename = typename std::enable_if<!std::is_same<
+                typename std::decay<F>::type, Fiber::ptr>::value>::type>
+  void schedule(F &&f, Args &&...args) {
     auto func = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
 
-    const Task task(std::move(func));
-    task_queue_->push(task);
+    task_queue_->push(Task(std::move(func)));
 
     ZCOROUTINE_LOG_DEBUG("Scheduler[{}] scheduled task, queue_size={}", name_,
                          task_queue_->size());
